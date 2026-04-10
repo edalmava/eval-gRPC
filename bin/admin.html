@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIA - Panel de Administración</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f8f9fa; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h1 { margin: 0; color: #1a73e8; font-size: 1.5rem; }
+        .room-badge { background: #e8f0fe; color: #1a73e8; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; color: #666; font-size: 0.9rem; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+        
+        .status-pill { padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+        .status-connected { background: #e6f4ea; color: #1e8e3e; }
+        .status-disconnected { background: #fce8e6; color: #d93025; }
+        
+        .event-log { height: 400px; overflow-y: auto; font-size: 0.85rem; }
+        .event-item { padding: 10px; border-bottom: 1px solid #f0f0f0; border-left: 4px solid #ddd; margin-bottom: 5px; }
+        .event-security { border-left-color: #d93025; background: #fff5f5; }
+        .event-time { color: #999; font-size: 0.75rem; display: block; }
+        
+        .alert-count { background: #d93025; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SIA Admin Panel</h1>
+            <div class="room-badge">SALA: <span id="roomCodeDisplay">---</span></div>
+        </header>
+
+        <div class="grid">
+            <!-- Lista de Estudiantes -->
+            <div class="card">
+                <h3>Estudiantes en la Sala (<span id="studentCount">0</span>)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>IP Local</th>
+                            <th>Estado</th>
+                            <th>Última Actividad</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Registro de Eventos -->
+            <div class="card">
+                <h3>Historial de Eventos</h3>
+                <div id="eventLog" class="event-log">
+                    <p style="color: #999; text-align: center;">Esperando actividad...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        const students = new Map();
+        const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+        const studentTable = document.getElementById('studentTable');
+        const eventLog = document.getElementById('eventLog');
+        const studentCount = document.getElementById('studentCount');
+
+        function connect() {
+            ws = new WebSocket('ws://' + window.location.hostname + ':8081/ws-admin');
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'init') {
+                    roomCodeDisplay.textContent = data.room;
+                    data.students.forEach(s => updateStudent(s));
+                } else if (data.client_id) {
+                    updateStudent(data);
+                    if (data.event === 'security') {
+                        addEvent(data);
+                    }
+                }
+            };
+
+            ws.onclose = () => setTimeout(connect, 2000);
+        }
+
+        function updateStudent(s) {
+            students.set(s.client_id, s);
+            renderTable();
+        }
+
+        function renderTable() {
+            studentTable.innerHTML = '';
+            studentCount.textContent = students.size;
+            
+            students.forEach(s => {
+                const row = document.createElement('tr');
+                const statusClass = s.status === 'connected' ? 'status-connected' : 'status-disconnected';
+                const lastSeen = s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : 'N/A';
+                
+                row.innerHTML = `
+                    <td><strong>${s.student_name || 'Desconocido'}</strong><br><small style="color:#999">${s.client_id.substring(0,8)}...</small></td>
+                    <td>${s.local_ip || '---'}</td>
+                    <td><span class="status-pill ${statusClass}">${s.status.toUpperCase()}</span></td>
+                    <td>${lastSeen}</td>
+                `;
+                studentTable.appendChild(row);
+            });
+        }
+
+        function addEvent(data) {
+            if (eventLog.querySelector('p')) eventLog.innerHTML = '';
+            
+            const item = document.createElement('div');
+            item.className = `event-item ${data.type === 'focus_lost' || data.event === 'security' ? 'event-security' : ''}`;
+            const time = new Date().toLocaleTimeString();
+            const student = students.get(data.client_id);
+            const name = student ? student.student_name : 'ID: ' + data.client_id.substring(0,8);
+            
+            item.innerHTML = `
+                <span class="event-time">${time}</span>
+                <strong>${name}</strong>: ${data.type || data.event === 'security' ? '¡PÉRDIDA DE FOCO!' : 'Cambio de estado'}
+            `;
+            eventLog.prepend(item);
+        }
+
+        connect();
+    </script>
+</body>
+</html>

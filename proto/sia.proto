@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package sia;
+
+option go_package = "sia/proto";
+
+service SIAService {
+  rpc Join(JoinRequest) returns (JoinResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc ReportSecurityEvent(SecurityEventRequest) returns (SecurityEventResponse);
+}
+
+message JoinRequest {
+  string client_id = 1;
+  string student_name = 2;
+  string room_code = 3;
+  string local_ip = 4;
+  string signature = 5; // HMAC-SHA256 signature
+}
+
+message JoinResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message HeartbeatRequest {
+  string client_id = 1;
+  string room_code = 2;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
+
+message SecurityEventRequest {
+  string client_id = 1;
+  string room_code = 2;
+  string event_type = 3; // e.g., "focus_lost"
+  int64 timestamp = 4;
+}
+
+message SecurityEventResponse {
+  bool received = 1;
+}
+
+message StudentStatus {
+  string client_id = 1;
+  string student_name = 2;
+  string local_ip = 3;
+  string status = 4; // "connected", "disconnected", "goodbye"
+  int64 last_seen = 5;
+}

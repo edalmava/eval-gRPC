@@ -1,0 +1,9 @@
+go 1.24.1
+
+use (
+	./cmd/client
+	./cmd/server
+	./internal
+	./pkg
+	./proto
+)
