@@ -1,0 +1,33 @@
+# Binarios
+bin/*.exe
+bin/*.test
+bin/*.prof
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Archivos de Datos y Sesión locales
+bin/client_id.txt
+.sia-session-*
+
+# Herramientas y Protoc
+tools/protoc/
+
+# Go
+go.work
+go.work.sum
+vendor/
+*.log
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
