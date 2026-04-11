@@ -81,7 +81,12 @@ func (s *SIAServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*p
 	}
 	err := s.Manager.Heartbeat(req.ClientId)
 	if err == nil {
-		s.Hub.Broadcast(map[string]string{"client_id": req.ClientId, "status": "connected", "event": "heartbeat"})
+		s.Hub.Broadcast(map[string]interface{}{
+			"client_id": req.ClientId, 
+			"status":    "connected", 
+			"event":     "heartbeat",
+			"last_seen": time.Now().Format(time.RFC3339),
+		})
 	}
 	return &pb.HeartbeatResponse{Acknowledged: err == nil}, nil
 }
@@ -99,6 +104,7 @@ func (s *SIAServer) ReportSecurityEvent(ctx context.Context, req *pb.SecurityEve
 		"event":      "security",
 		"type":       req.EventType,
 		"timestamp":  req.Timestamp,
+		"last_seen":  time.Now().Format(time.RFC3339),
 	})
 	return &pb.SecurityEventResponse{Received: true}, nil
 }

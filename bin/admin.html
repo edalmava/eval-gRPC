@@ -95,7 +95,8 @@
         }
 
         function updateStudent(s) {
-            students.set(s.client_id, s);
+            const existing = students.get(s.client_id) || {};
+            students.set(s.client_id, { ...existing, ...s });
             renderTable();
         }
 
