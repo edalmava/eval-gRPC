@@ -11,6 +11,19 @@
         h1 { margin: 0; color: #1a73e8; font-size: 1.5rem; }
         .room-badge { background: #e8f0fe; color: #1a73e8; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
         
+        .question-card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #1a73e8; }
+        .question-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; font-family: inherit; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .option-input { display: flex; align-items: center; gap: 10px; }
+        .option-input input { flex: 1; padding: 8px; border: 1px solid #eee; border-radius: 4px; }
+        .btn { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-secondary { background: #666; }
+        
+        .active-question-info { background: #fff8e1; border: 1px solid #ffe082; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .stats-bar { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .stats-fill { height: 100%; background: #1a73e8; transition: width 0.3s; }
+
         .grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
         .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         
@@ -36,6 +49,52 @@
             <h1>SIA Admin Panel</h1>
             <div class="room-badge">SALA: <span id="roomCodeDisplay">---</span></div>
         </header>
+
+        <!-- Módulo de Preguntas -->
+        <div class="question-card">
+            <h3>Módulo de Preguntas en Clase</h3>
+            
+            <div id="no-active-question">
+                <div class="question-form">
+                    <textarea id="q-text" placeholder="Escribe tu pregunta aquí..." rows="3"></textarea>
+                    <div style="margin-bottom: 10px;">
+                        Tipo: 
+                        <select id="q-type" onchange="toggleOptions()">
+                            <option value="TEXT">Texto libre</option>
+                            <option value="MULTIPLE_CHOICE">Opción múltiple</option>
+                        </select>
+                    </div>
+                    
+                    <div id="q-options" class="options-grid" style="display: none;">
+                        <div class="option-input"><strong>A</strong> <input type="text" id="opt-A" placeholder="Opción A"></div>
+                        <div class="option-input"><strong>B</strong> <input type="text" id="opt-B" placeholder="Opción B"></div>
+                        <div class="option-input"><strong>C</strong> <input type="text" id="opt-C" placeholder="Opción C"></div>
+                        <div class="option-input"><strong>D</strong> <input type="text" id="opt-D" placeholder="Opción D"></div>
+                    </div>
+                    
+                    <button class="btn" onclick="sendQuestion()">Lanzar Pregunta</button>
+                </div>
+            </div>
+
+            <div id="active-question-panel" style="display: none;">
+                <div class="active-question-info">
+                    <strong id="display-q-text">Pregunta...</strong>
+                    <div id="options-stats" style="margin-top:10px"></div>
+                    <div style="margin-top:10px; font-size: 0.9rem; color: #666;">
+                        Respondieron: <span id="ans-count">0</span> de <span id="total-expected">0</span>
+                    </div>
+                </div>
+                
+                <table style="font-size: 0.85rem;">
+                    <thead>
+                        <tr><th>Estudiante</th><th>Respuesta</th><th>Hora</th></tr>
+                    </thead>
+                    <tbody id="answers-table"></tbody>
+                </table>
+                <br>
+                <button class="btn btn-secondary" onclick="closeQuestion()">Cerrar Pregunta</button>
+            </div>
+        </div>
 
         <div class="grid">
             <!-- Lista de Estudiantes -->
@@ -68,11 +127,9 @@
 
     <script>
         let ws;
+        let activeQuestion = null;
         const students = new Map();
-        const roomCodeDisplay = document.getElementById('roomCodeDisplay');
-        const studentTable = document.getElementById('studentTable');
-        const eventLog = document.getElementById('eventLog');
-        const studentCount = document.getElementById('studentCount');
+        // ... (resto de constantes de UI)
 
         function connect() {
             ws = new WebSocket('ws://' + window.location.hostname + ':8081/ws-admin');
@@ -83,6 +140,15 @@
                 if (data.type === 'init') {
                     roomCodeDisplay.textContent = data.room;
                     data.students.forEach(s => updateStudent(s));
+                    checkActiveQuestion();
+                } else if (data.type === 'question_broadcast') {
+                    showActiveQuestion(data.question);
+                } else if (data.type === 'new_answer') {
+                    addAnswer(data);
+                } else if (data.type === 'question_closed') {
+                    activeQuestion = null;
+                    document.getElementById('no-active-question').style.display = 'block';
+                    document.getElementById('active-question-panel').style.display = 'none';
                 } else if (data.client_id) {
                     updateStudent(data);
                     if (data.event === 'security') {
@@ -92,6 +158,133 @@
             };
 
             ws.onclose = () => setTimeout(connect, 2000);
+        }
+
+        async function checkActiveQuestion() {
+            const res = await fetch('/api/question/active');
+            const data = await res.json();
+            if (data && data.open) {
+                showActiveQuestion(data);
+                // Cargar respuestas ya existentes
+                const ansRes = await fetch(`/api/question/results/${data.question_id}`);
+                const answers = await ansRes.json();
+                if (answers) answers.forEach(a => addAnswer(a));
+            }
+        }
+
+        function toggleOptions() {
+            const type = document.getElementById('q-type').value;
+            document.getElementById('q-options').style.display = type === 'MULTIPLE_CHOICE' ? 'grid' : 'none';
+        }
+
+        async function sendQuestion() {
+            const text = document.getElementById('q-text').value;
+            const type = document.getElementById('q-type').value;
+            const roomCode = roomCodeDisplay.textContent;
+            const qid = Math.random().toString(36).substring(7);
+            
+            const options = [];
+            if (type === 'MULTIPLE_CHOICE') {
+                ['A','B','C','D'].forEach(id => {
+                    const optText = document.getElementById(`opt-${id}`).value;
+                    if (optText) options.push({ id, text: optText });
+                });
+            }
+
+            // Firma: HMAC-SHA256 de (question_id + room_code)
+            // En un entorno real, esto se hace con una clave secreta.
+            // Para este prototipo, el servidor validará que seamos nosotros.
+            const adminSignature = await generateHMAC(qid + roomCode, roomCode);
+
+            const payload = {
+                room_code: roomCode,
+                admin_signature: adminSignature,
+                question: {
+                    question_id: qid,
+                    room_code: roomCode,
+                    text: text,
+                    type: type === 'TEXT' ? 0 : 1,
+                    options: options,
+                    created_at: Math.floor(Date.now() / 1000)
+                }
+            };
+
+            const res = await fetch('/api/question/broadcast', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.success) {
+                document.getElementById('q-text').value = '';
+            } else {
+                alert("Error al lanzar pregunta: " + (result.message || "Ya hay una activa"));
+            }
+        }
+
+        function showActiveQuestion(q) {
+            activeQuestion = q;
+            document.getElementById('no-active-question').style.display = 'none';
+            document.getElementById('active-question-panel').style.display = 'block';
+            document.getElementById('display-q-text').textContent = q.text;
+            document.getElementById('answers-table').innerHTML = '';
+            document.getElementById('ans-count').textContent = '0';
+            document.getElementById('total-expected').textContent = students.size;
+            updateStats();
+        }
+
+        function addAnswer(a) {
+            if (!activeQuestion) return;
+            const table = document.getElementById('answers-table');
+            const row = document.createElement('tr');
+            const time = new Date(a.timestamp * 1000 || a.timestamp).toLocaleTimeString();
+            row.innerHTML = `<td>${a.student_name}</td><td><strong>${a.answer}</strong></td><td>${time}</td>`;
+            table.prepend(row);
+            
+            const count = table.children.length;
+            document.getElementById('ans-count').textContent = count;
+            updateStats();
+        }
+
+        function updateStats() {
+            if (!activeQuestion || activeQuestion.type !== 'MULTIPLE_CHOICE') {
+                document.getElementById('options-stats').innerHTML = '';
+                return;
+            }
+            
+            const answers = Array.from(document.getElementById('answers-table').children).map(tr => tr.children[1].textContent);
+            const stats = {};
+            activeQuestion.options.forEach(o => stats[o.id] = 0);
+            answers.forEach(a => { if (stats[a] !== undefined) stats[a]++; });
+
+            let html = '';
+            const total = answers.length || 1;
+            activeQuestion.options.forEach(o => {
+                const pct = (stats[o.id] / total * 100).toFixed(0);
+                html += `
+                    <div style="margin-bottom: 5px;">
+                        <small>${o.id}: ${o.text} (${stats[o.id]})</small>
+                        <div class="stats-bar"><div class="stats-fill" style="width: ${pct}%"></div></div>
+                    </div>
+                `;
+            });
+            document.getElementById('options-stats').innerHTML = html;
+        }
+
+        async function closeQuestion() {
+            if (!activeQuestion) return;
+            await fetch('/api/question/close', {
+                method: 'POST',
+                body: JSON.stringify({ question_id: activeQuestion.question_id, room_code: roomCodeDisplay.textContent })
+            });
+        }
+
+        async function generateHMAC(message, key) {
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(key);
+            const msgData = encoder.encode(message);
+            const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+            const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+            return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
         function updateStudent(s) {

@@ -41,9 +41,25 @@
 </head>
 <body>
     <div class="card">
-...
+        <h1>SIA Estudiante</h1>
+        
+        <!-- Formulario de Ingreso -->
+        <div id="joinForm">
+            <p class="info">Ingresa a tu sala de evaluación</p>
+            <input type="text" id="inputRoom" placeholder="Código de Sala (ej. 1987AE)" style="text-transform: uppercase;">
+            <input type="text" id="inputName" placeholder="Tu Nombre Completo">
+            <button onclick="joinRoom()">UNIRSE A LA SALA</button>
+            <p id="loginError" class="alert"></p>
+        </div>
+
+        <!-- Vista de Estado -->
         <div id="statusView">
-...
+            <p id="studentName" class="info">Cargando...</p>
+            <div id="statusBox" class="status offline">CONECTANDO...</div>
+            <div class="info">
+                ID: <span id="clientId">---</span><br>
+                Sala: <span id="roomCode">---</span>
+            </div>
             <p id="focusAlert" class="alert">¡Atención! Has perdido el foco del navegador. Esto ha sido reportado.</p>
         </div>
     </div>
@@ -61,7 +77,10 @@
 
     <script>
         const joinForm = document.getElementById('joinForm');
-...
+        const statusView = document.getElementById('statusView');
+        const statusBox = document.getElementById('statusBox');
+        const focusAlert = document.getElementById('focusAlert');
+        const loginError = document.getElementById('loginError');
         let ws;
         let currentQuestion = null;
         let selectedOption = null;
@@ -75,6 +94,8 @@
 
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
+                console.log("WS Local:", data);
+
                 if (data.type === 'init') {
                     document.getElementById('studentName').textContent = data.name;
                     document.getElementById('clientId').textContent = data.id;
@@ -87,6 +108,7 @@
                     loginError.textContent = data.message;
                     loginError.style.display = 'block';
                 } else if (data.type === 'question_incoming') {
+                    console.log("Nueva pregunta recibida:", data);
                     showQuestion(data);
                 } else if (data.type === 'answer_result') {
                     showAnswerResult(data.accepted);
@@ -172,7 +194,6 @@
         }
 
         function joinRoom() {
-...
             const room = document.getElementById('inputRoom').value.trim();
             const name = document.getElementById('inputName').value.trim();
             
