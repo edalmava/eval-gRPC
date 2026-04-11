@@ -4,6 +4,7 @@ SIA es un sistema de evaluación de aula diseñado para funcionar en redes local
 
 ## 🚀 Características Principales
 
+- **Binarios Autónomos:** Gracias a `go:embed`, todos los archivos de interfaz (HTML/CSS/JS) están integrados dentro de los ejecutables. No necesitas archivos externos para correr el sistema.
 - **Descubrimiento Automático (mDNS):** Los clientes encuentran al servidor en la red local automáticamente usando el código de la sala. Cero configuración manual de IPs.
 - **Comunicación de Alto Rendimiento:** Utiliza **gRPC** con Protocol Buffers para una comunicación eficiente y tipada entre estudiantes y el servidor.
 - **Módulo de Preguntas en Clase:** El profesor puede lanzar preguntas (texto o opción múltiple) que aparecen instantáneamente en los dispositivos de los alumnos mediante **gRPC Server Streaming**.
@@ -16,6 +17,7 @@ SIA es un sistema de evaluación de aula diseñado para funcionar en redes local
 ## 🛠️ Arquitectura Técnica
 
 - **Lenguaje:** Go (Golang) con Workspace.
+- **Empaquetado:** `go:embed` para recursos estáticos autónomos.
 - **Transporte:** gRPC (Puerto 50051 TCP) con streams para difusión de preguntas.
 - **Descubrimiento:** mDNS / DNS-SD (Puerto 5353 UDP).
 - **Web UI:** HTML5/JavaScript (Vanilla) con WebSockets y CSS moderno.
@@ -31,18 +33,32 @@ Para un correcto funcionamiento, asegúrate de permitir los siguientes puertos e
 ## 🏃 Cómo empezar
 
 ### Servidor (Admin)
-1. Ejecuta el servidor definiendo un código de sala:
+1. Ejecuta el binario definiendo un código de sala:
    ```bash
    .\server.exe MI_SALA_2024
    ```
 2. Accede al panel en `http://localhost:8081` (Usuario: `admin`, Clave: `MI_SALA_2024`).
 
 ### Cliente (Estudiante)
-1. Ejecuta el cliente:
+1. Ejecuta el binario:
    ```bash
    .\client.exe
    ```
 2. El navegador se abrirá automáticamente. Ingresa el código de la sala y tu nombre.
+
+## 🛠️ Desarrollo y Compilación
+
+Si deseas compilar el proyecto desde el código fuente:
+
+1. **Regenerar Proto (opcional):**
+   ```bash
+   protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/sia.proto
+   ```
+2. **Compilar binarios:**
+   ```bash
+   go build -o bin/server.exe ./cmd/server/main.go
+   go build -o bin/client.exe ./cmd/client/main.go
+   ```
 
 ---
 Desarrollado con ❤️ para entornos educativos resilientes.

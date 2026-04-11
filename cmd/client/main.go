@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,6 +23,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+//go:embed index.html
+var indexHTML []byte
 
 const ClientIDFile = "client_id.txt"
 
@@ -277,12 +281,8 @@ func main() {
 
 	// Servidor web local
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, err := os.Stat("cmd/client/index.html")
-		if err == nil {
-			http.ServeFile(w, r, "cmd/client/index.html")
-			return
-		}
-		http.ServeFile(w, r, "index.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexHTML)
 	})
 	
 	http.HandleFunc("/ws-local", app.handleLocalWS)

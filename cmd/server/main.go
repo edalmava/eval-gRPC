@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,6 +20,12 @@ import (
 	"github.com/grandcat/zeroconf"
 	"google.golang.org/grpc"
 )
+
+//go:embed admin.html
+var adminHTML []byte
+
+//go:embed login.html
+var loginHTML []byte
 
 var sessionToken = "" // Token temporal para la sesión actual
 
@@ -61,12 +68,8 @@ func main() {
 
 	// Página de Login
 	adminMux.HandleFunc("/login-page", func(w http.ResponseWriter, r *http.Request) {
-		_, err := os.Stat("cmd/server/login.html")
-		if err == nil {
-			http.ServeFile(w, r, "cmd/server/login.html")
-			return
-		}
-		http.ServeFile(w, r, "login.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(loginHTML)
 	})
 
 	// Endpoint de Login POST
@@ -98,12 +101,8 @@ func main() {
 			http.Redirect(w, r, "/login-page", http.StatusSeeOther)
 			return
 		}
-		_, err := os.Stat("cmd/server/admin.html")
-		if err == nil {
-			http.ServeFile(w, r, "cmd/server/admin.html")
-			return
-		}
-		http.ServeFile(w, r, "admin.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(adminHTML)
 	})
 
 	// WebSocket de Admin (Protegido)
