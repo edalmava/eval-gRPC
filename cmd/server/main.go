@@ -107,6 +107,68 @@ func main() {
 	var upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
+
+	// API de Preguntas (Proxy a gRPC/Manager)
+	adminMux.HandleFunc("/api/question/broadcast", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) || r.Method != http.MethodPost {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		var req pb.BroadcastQuestionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Usamos el handler de gRPC directamente
+		server := &api.SIAServer{Manager: manager, Hub: hub}
+		res, err := server.BroadcastQuestion(r.Context(), &req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(res)
+	})
+
+	adminMux.HandleFunc("/api/question/close", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) || r.Method != http.MethodPost {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		var req pb.CloseQuestionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		server := &api.SIAServer{Manager: manager, Hub: hub}
+		res, err := server.CloseQuestion(r.Context(), &req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(res)
+	})
+
+	adminMux.HandleFunc("/api/question/active", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		active := manager.GetActiveQuestion()
+		json.NewEncoder(w).Encode(active)
+	})
+
+	adminMux.HandleFunc("/api/question/results/", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		id := r.URL.Path[len("/api/question/results/"):]
+		results := manager.GetResults(id)
+		json.NewEncoder(w).Encode(results)
+	})
+
 	adminMux.HandleFunc("/ws-admin", func(w http.ResponseWriter, r *http.Request) {
 		if !isAuthenticated(r) {
 			http.Error(w, "No autorizado", http.StatusUnauthorized)

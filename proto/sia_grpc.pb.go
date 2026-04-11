@@ -19,9 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SIAService_Join_FullMethodName                = "/sia.SIAService/Join"
-	SIAService_Heartbeat_FullMethodName           = "/sia.SIAService/Heartbeat"
-	SIAService_ReportSecurityEvent_FullMethodName = "/sia.SIAService/ReportSecurityEvent"
+	SIAService_Join_FullMethodName                 = "/sia.SIAService/Join"
+	SIAService_Heartbeat_FullMethodName            = "/sia.SIAService/Heartbeat"
+	SIAService_ReportSecurityEvent_FullMethodName  = "/sia.SIAService/ReportSecurityEvent"
+	SIAService_BroadcastQuestion_FullMethodName    = "/sia.SIAService/BroadcastQuestion"
+	SIAService_SubmitAnswer_FullMethodName         = "/sia.SIAService/SubmitAnswer"
+	SIAService_CloseQuestion_FullMethodName        = "/sia.SIAService/CloseQuestion"
+	SIAService_SubscribeToQuestions_FullMethodName = "/sia.SIAService/SubscribeToQuestions"
 )
 
 // SIAServiceClient is the client API for SIAService service.
@@ -31,6 +35,11 @@ type SIAServiceClient interface {
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	ReportSecurityEvent(ctx context.Context, in *SecurityEventRequest, opts ...grpc.CallOption) (*SecurityEventResponse, error)
+	// Módulo de Preguntas
+	BroadcastQuestion(ctx context.Context, in *BroadcastQuestionRequest, opts ...grpc.CallOption) (*BroadcastQuestionResponse, error)
+	SubmitAnswer(ctx context.Context, in *SubmitAnswerRequest, opts ...grpc.CallOption) (*SubmitAnswerResponse, error)
+	CloseQuestion(ctx context.Context, in *CloseQuestionRequest, opts ...grpc.CallOption) (*CloseQuestionResponse, error)
+	SubscribeToQuestions(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Question], error)
 }
 
 type sIAServiceClient struct {
@@ -71,6 +80,55 @@ func (c *sIAServiceClient) ReportSecurityEvent(ctx context.Context, in *Security
 	return out, nil
 }
 
+func (c *sIAServiceClient) BroadcastQuestion(ctx context.Context, in *BroadcastQuestionRequest, opts ...grpc.CallOption) (*BroadcastQuestionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BroadcastQuestionResponse)
+	err := c.cc.Invoke(ctx, SIAService_BroadcastQuestion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sIAServiceClient) SubmitAnswer(ctx context.Context, in *SubmitAnswerRequest, opts ...grpc.CallOption) (*SubmitAnswerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitAnswerResponse)
+	err := c.cc.Invoke(ctx, SIAService_SubmitAnswer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sIAServiceClient) CloseQuestion(ctx context.Context, in *CloseQuestionRequest, opts ...grpc.CallOption) (*CloseQuestionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CloseQuestionResponse)
+	err := c.cc.Invoke(ctx, SIAService_CloseQuestion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sIAServiceClient) SubscribeToQuestions(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Question], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SIAService_ServiceDesc.Streams[0], SIAService_SubscribeToQuestions_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeRequest, Question]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SIAService_SubscribeToQuestionsClient = grpc.ServerStreamingClient[Question]
+
 // SIAServiceServer is the server API for SIAService service.
 // All implementations must embed UnimplementedSIAServiceServer
 // for forward compatibility.
@@ -78,6 +136,11 @@ type SIAServiceServer interface {
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	ReportSecurityEvent(context.Context, *SecurityEventRequest) (*SecurityEventResponse, error)
+	// Módulo de Preguntas
+	BroadcastQuestion(context.Context, *BroadcastQuestionRequest) (*BroadcastQuestionResponse, error)
+	SubmitAnswer(context.Context, *SubmitAnswerRequest) (*SubmitAnswerResponse, error)
+	CloseQuestion(context.Context, *CloseQuestionRequest) (*CloseQuestionResponse, error)
+	SubscribeToQuestions(*SubscribeRequest, grpc.ServerStreamingServer[Question]) error
 	mustEmbedUnimplementedSIAServiceServer()
 }
 
@@ -96,6 +159,18 @@ func (UnimplementedSIAServiceServer) Heartbeat(context.Context, *HeartbeatReques
 }
 func (UnimplementedSIAServiceServer) ReportSecurityEvent(context.Context, *SecurityEventRequest) (*SecurityEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportSecurityEvent not implemented")
+}
+func (UnimplementedSIAServiceServer) BroadcastQuestion(context.Context, *BroadcastQuestionRequest) (*BroadcastQuestionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BroadcastQuestion not implemented")
+}
+func (UnimplementedSIAServiceServer) SubmitAnswer(context.Context, *SubmitAnswerRequest) (*SubmitAnswerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAnswer not implemented")
+}
+func (UnimplementedSIAServiceServer) CloseQuestion(context.Context, *CloseQuestionRequest) (*CloseQuestionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CloseQuestion not implemented")
+}
+func (UnimplementedSIAServiceServer) SubscribeToQuestions(*SubscribeRequest, grpc.ServerStreamingServer[Question]) error {
+	return status.Error(codes.Unimplemented, "method SubscribeToQuestions not implemented")
 }
 func (UnimplementedSIAServiceServer) mustEmbedUnimplementedSIAServiceServer() {}
 func (UnimplementedSIAServiceServer) testEmbeddedByValue()                    {}
@@ -172,6 +247,71 @@ func _SIAService_ReportSecurityEvent_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SIAService_BroadcastQuestion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BroadcastQuestionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SIAServiceServer).BroadcastQuestion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SIAService_BroadcastQuestion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SIAServiceServer).BroadcastQuestion(ctx, req.(*BroadcastQuestionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SIAService_SubmitAnswer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitAnswerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SIAServiceServer).SubmitAnswer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SIAService_SubmitAnswer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SIAServiceServer).SubmitAnswer(ctx, req.(*SubmitAnswerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SIAService_CloseQuestion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CloseQuestionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SIAServiceServer).CloseQuestion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SIAService_CloseQuestion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SIAServiceServer).CloseQuestion(ctx, req.(*CloseQuestionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SIAService_SubscribeToQuestions_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SIAServiceServer).SubscribeToQuestions(m, &grpc.GenericServerStream[SubscribeRequest, Question]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SIAService_SubscribeToQuestionsServer = grpc.ServerStreamingServer[Question]
+
 // SIAService_ServiceDesc is the grpc.ServiceDesc for SIAService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -191,7 +331,25 @@ var SIAService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ReportSecurityEvent",
 			Handler:    _SIAService_ReportSecurityEvent_Handler,
 		},
+		{
+			MethodName: "BroadcastQuestion",
+			Handler:    _SIAService_BroadcastQuestion_Handler,
+		},
+		{
+			MethodName: "SubmitAnswer",
+			Handler:    _SIAService_SubmitAnswer_Handler,
+		},
+		{
+			MethodName: "CloseQuestion",
+			Handler:    _SIAService_CloseQuestion_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribeToQuestions",
+			Handler:       _SIAService_SubscribeToQuestions_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/sia.proto",
 }

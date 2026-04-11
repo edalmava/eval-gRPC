@@ -12,17 +12,106 @@ const GracePeriod = 2 * time.Minute
 
 // Manager gestiona las salas y el estado de los estudiantes.
 type Manager struct {
-	mu       sync.RWMutex
-	RoomCode string
-	Students map[string]*models.Student
+	mu              sync.RWMutex
+	RoomCode        string
+	Students        map[string]*models.Student
+	ActiveQuestion  *models.ActiveQuestion
+	QuestionHistory map[string]*models.ActiveQuestion
 }
 
 // NewManager crea un nuevo gestor de sala.
 func NewManager(roomCode string) *Manager {
 	return &Manager{
-		RoomCode: utils.NormalizeRoomCode(roomCode),
-		Students: make(map[string]*models.Student),
+		RoomCode:        utils.NormalizeRoomCode(roomCode),
+		Students:        make(map[string]*models.Student),
+		QuestionHistory: make(map[string]*models.ActiveQuestion),
 	}
+}
+
+// OpenQuestion registra una nueva pregunta activa. Retorna error si ya hay una abierta.
+func (m *Manager) OpenQuestion(q *models.ActiveQuestion) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ActiveQuestion != nil && m.ActiveQuestion.Open {
+		return fmt.Errorf("ya hay una pregunta abierta")
+	}
+
+	m.ActiveQuestion = q
+	m.ActiveQuestion.Open = true
+	if m.ActiveQuestion.Answers == nil {
+		m.ActiveQuestion.Answers = make(map[string]*models.Answer)
+	}
+	return nil
+}
+
+// SubmitAnswer registra la respuesta de un estudiante.
+func (m *Manager) SubmitAnswer(questionID, clientID, studentName, answer string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ActiveQuestion == nil || !m.ActiveQuestion.Open || m.ActiveQuestion.QuestionID != questionID {
+		return fmt.Errorf("no hay una pregunta activa con ID %s", questionID)
+	}
+
+	if _, ok := m.ActiveQuestion.Answers[clientID]; ok {
+		return fmt.Errorf("ya has respondido esta pregunta")
+	}
+
+	m.ActiveQuestion.Answers[clientID] = &models.Answer{
+		ClientID:    clientID,
+		StudentName: studentName,
+		Answer:      answer,
+		Timestamp:   time.Now(),
+	}
+	return nil
+}
+
+// CloseQuestion cierra la pregunta activa y retorna el total de respuestas.
+func (m *Manager) CloseQuestion(questionID string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ActiveQuestion == nil || m.ActiveQuestion.QuestionID != questionID {
+		return 0, fmt.Errorf("pregunta %s no encontrada o no es la activa", questionID)
+	}
+
+	m.ActiveQuestion.Open = false
+	total := len(m.ActiveQuestion.Answers)
+	m.QuestionHistory[questionID] = m.ActiveQuestion
+	// Opcional: limitar historial a 50
+	if len(m.QuestionHistory) > 50 {
+		// Implementar limpieza si es necesario
+	}
+
+	return total, nil
+}
+
+// GetActiveQuestion retorna la pregunta activa actual (nil si no hay).
+func (m *Manager) GetActiveQuestion() *models.ActiveQuestion {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.ActiveQuestion
+}
+
+// GetResults retorna todas las respuestas de una pregunta ya cerrada (del historial).
+func (m *Manager) GetResults(questionID string) []*models.Answer {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	q, ok := m.QuestionHistory[questionID]
+	if !ok && (m.ActiveQuestion == nil || m.ActiveQuestion.QuestionID != questionID) {
+		return nil
+	}
+	if !ok {
+		q = m.ActiveQuestion
+	}
+
+	results := make([]*models.Answer, 0, len(q.Answers))
+	for _, ans := range q.Answers {
+		results = append(results, ans)
+	}
+	return results
 }
 
 // JoinStudent registra o reconecta a un estudiante.
@@ -108,4 +197,14 @@ func (m *Manager) GetStudents() []*models.Student {
 		list = append(list, &copy)
 	}
 	return list
+}
+
+// GetStudentName devuelve el nombre de un estudiante por su ID.
+func (m *Manager) GetStudentName(clientID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if s, ok := m.Students[clientID]; ok {
+		return s.StudentName
+	}
+	return "Desconocido"
 }

@@ -21,20 +21,606 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Tipos de pregunta
+type QuestionType int32
+
+const (
+	QuestionType_TEXT            QuestionType = 0
+	QuestionType_MULTIPLE_CHOICE QuestionType = 1
+)
+
+// Enum value maps for QuestionType.
+var (
+	QuestionType_name = map[int32]string{
+		0: "TEXT",
+		1: "MULTIPLE_CHOICE",
+	}
+	QuestionType_value = map[string]int32{
+		"TEXT":            0,
+		"MULTIPLE_CHOICE": 1,
+	}
+)
+
+func (x QuestionType) Enum() *QuestionType {
+	p := new(QuestionType)
+	*p = x
+	return p
+}
+
+func (x QuestionType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuestionType) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_sia_proto_enumTypes[0].Descriptor()
+}
+
+func (QuestionType) Type() protoreflect.EnumType {
+	return &file_proto_sia_proto_enumTypes[0]
+}
+
+func (x QuestionType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuestionType.Descriptor instead.
+func (QuestionType) EnumDescriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{0}
+}
+
+type QuestionOption struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // "A", "B", "C", "D"
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestionOption) Reset() {
+	*x = QuestionOption{}
+	mi := &file_proto_sia_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestionOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestionOption) ProtoMessage() {}
+
+func (x *QuestionOption) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestionOption.ProtoReflect.Descriptor instead.
+func (*QuestionOption) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *QuestionOption) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *QuestionOption) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type Question struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestionId    string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
+	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	Type          QuestionType           `protobuf:"varint,4,opt,name=type,proto3,enum=sia.QuestionType" json:"type,omitempty"`
+	Options       []*QuestionOption      `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty"` // vacío si type == TEXT
+	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Question) Reset() {
+	*x = Question{}
+	mi := &file_proto_sia_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Question) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Question) ProtoMessage() {}
+
+func (x *Question) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Question.ProtoReflect.Descriptor instead.
+func (*Question) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Question) GetQuestionId() string {
+	if x != nil {
+		return x.QuestionId
+	}
+	return ""
+}
+
+func (x *Question) GetRoomCode() string {
+	if x != nil {
+		return x.RoomCode
+	}
+	return ""
+}
+
+func (x *Question) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *Question) GetType() QuestionType {
+	if x != nil {
+		return x.Type
+	}
+	return QuestionType_TEXT
+}
+
+func (x *Question) GetOptions() []*QuestionOption {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *Question) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+type SubmitAnswerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestionId    string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
+	ClientId      string                 `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	RoomCode      string                 `protobuf:"bytes,3,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	Answer        string                 `protobuf:"bytes,4,opt,name=answer,proto3" json:"answer,omitempty"` // opción ID ("A","B"...) o texto libre
+	Timestamp     int64                  `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Signature     string                 `protobuf:"bytes,6,opt,name=signature,proto3" json:"signature,omitempty"` // HMAC-SHA256 de (question_id + client_id + answer)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitAnswerRequest) Reset() {
+	*x = SubmitAnswerRequest{}
+	mi := &file_proto_sia_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAnswerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAnswerRequest) ProtoMessage() {}
+
+func (x *SubmitAnswerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitAnswerRequest.ProtoReflect.Descriptor instead.
+func (*SubmitAnswerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SubmitAnswerRequest) GetQuestionId() string {
+	if x != nil {
+		return x.QuestionId
+	}
+	return ""
+}
+
+func (x *SubmitAnswerRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *SubmitAnswerRequest) GetRoomCode() string {
+	if x != nil {
+		return x.RoomCode
+	}
+	return ""
+}
+
+func (x *SubmitAnswerRequest) GetAnswer() string {
+	if x != nil {
+		return x.Answer
+	}
+	return ""
+}
+
+func (x *SubmitAnswerRequest) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *SubmitAnswerRequest) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+type SubmitAnswerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitAnswerResponse) Reset() {
+	*x = SubmitAnswerResponse{}
+	mi := &file_proto_sia_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAnswerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAnswerResponse) ProtoMessage() {}
+
+func (x *SubmitAnswerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitAnswerResponse.ProtoReflect.Descriptor instead.
+func (*SubmitAnswerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SubmitAnswerResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+func (x *SubmitAnswerResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type BroadcastQuestionRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RoomCode       string                 `protobuf:"bytes,1,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	Question       *Question              `protobuf:"bytes,2,opt,name=question,proto3" json:"question,omitempty"`
+	AdminSignature string                 `protobuf:"bytes,3,opt,name=admin_signature,json=adminSignature,proto3" json:"admin_signature,omitempty"` // HMAC-SHA256 de (question_id + room_code)
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *BroadcastQuestionRequest) Reset() {
+	*x = BroadcastQuestionRequest{}
+	mi := &file_proto_sia_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BroadcastQuestionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BroadcastQuestionRequest) ProtoMessage() {}
+
+func (x *BroadcastQuestionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BroadcastQuestionRequest.ProtoReflect.Descriptor instead.
+func (*BroadcastQuestionRequest) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BroadcastQuestionRequest) GetRoomCode() string {
+	if x != nil {
+		return x.RoomCode
+	}
+	return ""
+}
+
+func (x *BroadcastQuestionRequest) GetQuestion() *Question {
+	if x != nil {
+		return x.Question
+	}
+	return nil
+}
+
+func (x *BroadcastQuestionRequest) GetAdminSignature() string {
+	if x != nil {
+		return x.AdminSignature
+	}
+	return ""
+}
+
+type BroadcastQuestionResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	StudentsNotified int32                  `protobuf:"varint,2,opt,name=students_notified,json=studentsNotified,proto3" json:"students_notified,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *BroadcastQuestionResponse) Reset() {
+	*x = BroadcastQuestionResponse{}
+	mi := &file_proto_sia_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BroadcastQuestionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BroadcastQuestionResponse) ProtoMessage() {}
+
+func (x *BroadcastQuestionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BroadcastQuestionResponse.ProtoReflect.Descriptor instead.
+func (*BroadcastQuestionResponse) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BroadcastQuestionResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *BroadcastQuestionResponse) GetStudentsNotified() int32 {
+	if x != nil {
+		return x.StudentsNotified
+	}
+	return 0
+}
+
+type CloseQuestionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestionId    string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
+	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseQuestionRequest) Reset() {
+	*x = CloseQuestionRequest{}
+	mi := &file_proto_sia_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseQuestionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseQuestionRequest) ProtoMessage() {}
+
+func (x *CloseQuestionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseQuestionRequest.ProtoReflect.Descriptor instead.
+func (*CloseQuestionRequest) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CloseQuestionRequest) GetQuestionId() string {
+	if x != nil {
+		return x.QuestionId
+	}
+	return ""
+}
+
+func (x *CloseQuestionRequest) GetRoomCode() string {
+	if x != nil {
+		return x.RoomCode
+	}
+	return ""
+}
+
+type CloseQuestionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	TotalAnswers  int32                  `protobuf:"varint,2,opt,name=total_answers,json=totalAnswers,proto3" json:"total_answers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CloseQuestionResponse) Reset() {
+	*x = CloseQuestionResponse{}
+	mi := &file_proto_sia_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CloseQuestionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CloseQuestionResponse) ProtoMessage() {}
+
+func (x *CloseQuestionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CloseQuestionResponse.ProtoReflect.Descriptor instead.
+func (*CloseQuestionResponse) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CloseQuestionResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CloseQuestionResponse) GetTotalAnswers() int32 {
+	if x != nil {
+		return x.TotalAnswers
+	}
+	return 0
+}
+
+type SubscribeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubscribeRequest) Reset() {
+	*x = SubscribeRequest{}
+	mi := &file_proto_sia_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubscribeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubscribeRequest) ProtoMessage() {}
+
+func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_sia_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeRequest) Descriptor() ([]byte, []int) {
+	return file_proto_sia_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SubscribeRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *SubscribeRequest) GetRoomCode() string {
+	if x != nil {
+		return x.RoomCode
+	}
+	return ""
+}
+
 type JoinRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	StudentName   string                 `protobuf:"bytes,2,opt,name=student_name,json=studentName,proto3" json:"student_name,omitempty"`
-	RoomCode      string                 `protobuf:"bytes,3,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
-	LocalIp       string                 `protobuf:"bytes,4,opt,name=local_ip,json=localIp,proto3" json:"local_ip,omitempty"`
-	Signature     string                 `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"` // HMAC-SHA256 signature
+	LocalIp       string                 `protobuf:"bytes,3,opt,name=local_ip,json=localIp,proto3" json:"local_ip,omitempty"`
+	Signature     string                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_proto_sia_proto_msgTypes[0]
+	mi := &file_proto_sia_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +632,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[0]
+	mi := &file_proto_sia_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +645,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{0}
+	return file_proto_sia_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *JoinRequest) GetClientId() string {
@@ -72,13 +658,6 @@ func (x *JoinRequest) GetClientId() string {
 func (x *JoinRequest) GetStudentName() string {
 	if x != nil {
 		return x.StudentName
-	}
-	return ""
-}
-
-func (x *JoinRequest) GetRoomCode() string {
-	if x != nil {
-		return x.RoomCode
 	}
 	return ""
 }
@@ -107,7 +686,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_proto_sia_proto_msgTypes[1]
+	mi := &file_proto_sia_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +698,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[1]
+	mi := &file_proto_sia_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +711,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{1}
+	return file_proto_sia_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *JoinResponse) GetSuccess() bool {
@@ -159,7 +738,7 @@ type HeartbeatRequest struct {
 
 func (x *HeartbeatRequest) Reset() {
 	*x = HeartbeatRequest{}
-	mi := &file_proto_sia_proto_msgTypes[2]
+	mi := &file_proto_sia_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +750,7 @@ func (x *HeartbeatRequest) String() string {
 func (*HeartbeatRequest) ProtoMessage() {}
 
 func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[2]
+	mi := &file_proto_sia_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,7 +763,7 @@ func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
 func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{2}
+	return file_proto_sia_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HeartbeatRequest) GetClientId() string {
@@ -210,7 +789,7 @@ type HeartbeatResponse struct {
 
 func (x *HeartbeatResponse) Reset() {
 	*x = HeartbeatResponse{}
-	mi := &file_proto_sia_proto_msgTypes[3]
+	mi := &file_proto_sia_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -222,7 +801,7 @@ func (x *HeartbeatResponse) String() string {
 func (*HeartbeatResponse) ProtoMessage() {}
 
 func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[3]
+	mi := &file_proto_sia_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -235,7 +814,7 @@ func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
 func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{3}
+	return file_proto_sia_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *HeartbeatResponse) GetAcknowledged() bool {
@@ -257,7 +836,7 @@ type SecurityEventRequest struct {
 
 func (x *SecurityEventRequest) Reset() {
 	*x = SecurityEventRequest{}
-	mi := &file_proto_sia_proto_msgTypes[4]
+	mi := &file_proto_sia_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -269,7 +848,7 @@ func (x *SecurityEventRequest) String() string {
 func (*SecurityEventRequest) ProtoMessage() {}
 
 func (x *SecurityEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[4]
+	mi := &file_proto_sia_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -282,7 +861,7 @@ func (x *SecurityEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityEventRequest.ProtoReflect.Descriptor instead.
 func (*SecurityEventRequest) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{4}
+	return file_proto_sia_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SecurityEventRequest) GetClientId() string {
@@ -322,7 +901,7 @@ type SecurityEventResponse struct {
 
 func (x *SecurityEventResponse) Reset() {
 	*x = SecurityEventResponse{}
-	mi := &file_proto_sia_proto_msgTypes[5]
+	mi := &file_proto_sia_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -334,7 +913,7 @@ func (x *SecurityEventResponse) String() string {
 func (*SecurityEventResponse) ProtoMessage() {}
 
 func (x *SecurityEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[5]
+	mi := &file_proto_sia_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -347,7 +926,7 @@ func (x *SecurityEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityEventResponse.ProtoReflect.Descriptor instead.
 func (*SecurityEventResponse) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{5}
+	return file_proto_sia_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SecurityEventResponse) GetReceived() bool {
@@ -370,7 +949,7 @@ type StudentStatus struct {
 
 func (x *StudentStatus) Reset() {
 	*x = StudentStatus{}
-	mi := &file_proto_sia_proto_msgTypes[6]
+	mi := &file_proto_sia_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -382,7 +961,7 @@ func (x *StudentStatus) String() string {
 func (*StudentStatus) ProtoMessage() {}
 
 func (x *StudentStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_sia_proto_msgTypes[6]
+	mi := &file_proto_sia_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -395,7 +974,7 @@ func (x *StudentStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StudentStatus.ProtoReflect.Descriptor instead.
 func (*StudentStatus) Descriptor() ([]byte, []int) {
-	return file_proto_sia_proto_rawDescGZIP(), []int{6}
+	return file_proto_sia_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StudentStatus) GetClientId() string {
@@ -437,13 +1016,52 @@ var File_proto_sia_proto protoreflect.FileDescriptor
 
 const file_proto_sia_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/sia.proto\x12\x03sia\"\xa3\x01\n" +
+	"\x0fproto/sia.proto\x12\x03sia\"4\n" +
+	"\x0eQuestionOption\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"\xd1\x01\n" +
+	"\bQuestion\x12\x1f\n" +
+	"\vquestion_id\x18\x01 \x01(\tR\n" +
+	"questionId\x12\x1b\n" +
+	"\troom_code\x18\x02 \x01(\tR\broomCode\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12%\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x11.sia.QuestionTypeR\x04type\x12-\n" +
+	"\aoptions\x18\x05 \x03(\v2\x13.sia.QuestionOptionR\aoptions\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\"\xc4\x01\n" +
+	"\x13SubmitAnswerRequest\x12\x1f\n" +
+	"\vquestion_id\x18\x01 \x01(\tR\n" +
+	"questionId\x12\x1b\n" +
+	"\tclient_id\x18\x02 \x01(\tR\bclientId\x12\x1b\n" +
+	"\troom_code\x18\x03 \x01(\tR\broomCode\x12\x16\n" +
+	"\x06answer\x18\x04 \x01(\tR\x06answer\x12\x1c\n" +
+	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x1c\n" +
+	"\tsignature\x18\x06 \x01(\tR\tsignature\"L\n" +
+	"\x14SubmitAnswerResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x8b\x01\n" +
+	"\x18BroadcastQuestionRequest\x12\x1b\n" +
+	"\troom_code\x18\x01 \x01(\tR\broomCode\x12)\n" +
+	"\bquestion\x18\x02 \x01(\v2\r.sia.QuestionR\bquestion\x12'\n" +
+	"\x0fadmin_signature\x18\x03 \x01(\tR\x0eadminSignature\"b\n" +
+	"\x19BroadcastQuestionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12+\n" +
+	"\x11students_notified\x18\x02 \x01(\x05R\x10studentsNotified\"T\n" +
+	"\x14CloseQuestionRequest\x12\x1f\n" +
+	"\vquestion_id\x18\x01 \x01(\tR\n" +
+	"questionId\x12\x1b\n" +
+	"\troom_code\x18\x02 \x01(\tR\broomCode\"V\n" +
+	"\x15CloseQuestionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
+	"\rtotal_answers\x18\x02 \x01(\x05R\ftotalAnswers\"L\n" +
+	"\x10SubscribeRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x1b\n" +
+	"\troom_code\x18\x02 \x01(\tR\broomCode\"\x86\x01\n" +
 	"\vJoinRequest\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12!\n" +
-	"\fstudent_name\x18\x02 \x01(\tR\vstudentName\x12\x1b\n" +
-	"\troom_code\x18\x03 \x01(\tR\broomCode\x12\x19\n" +
-	"\blocal_ip\x18\x04 \x01(\tR\alocalIp\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\tR\tsignature\"B\n" +
+	"\fstudent_name\x18\x02 \x01(\tR\vstudentName\x12\x19\n" +
+	"\blocal_ip\x18\x03 \x01(\tR\alocalIp\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\tR\tsignature\"B\n" +
 	"\fJoinResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"L\n" +
@@ -465,12 +1083,19 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\fstudent_name\x18\x02 \x01(\tR\vstudentName\x12\x19\n" +
 	"\blocal_ip\x18\x03 \x01(\tR\alocalIp\x12\x16\n" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1b\n" +
-	"\tlast_seen\x18\x05 \x01(\x03R\blastSeen2\xc3\x01\n" +
+	"\tlast_seen\x18\x05 \x01(\x03R\blastSeen*-\n" +
+	"\fQuestionType\x12\b\n" +
+	"\x04TEXT\x10\x00\x12\x13\n" +
+	"\x0fMULTIPLE_CHOICE\x10\x012\xe4\x03\n" +
 	"\n" +
 	"SIAService\x12+\n" +
 	"\x04Join\x12\x10.sia.JoinRequest\x1a\x11.sia.JoinResponse\x12:\n" +
 	"\tHeartbeat\x12\x15.sia.HeartbeatRequest\x1a\x16.sia.HeartbeatResponse\x12L\n" +
-	"\x13ReportSecurityEvent\x12\x19.sia.SecurityEventRequest\x1a\x1a.sia.SecurityEventResponseB\vZ\tsia/protob\x06proto3"
+	"\x13ReportSecurityEvent\x12\x19.sia.SecurityEventRequest\x1a\x1a.sia.SecurityEventResponse\x12R\n" +
+	"\x11BroadcastQuestion\x12\x1d.sia.BroadcastQuestionRequest\x1a\x1e.sia.BroadcastQuestionResponse\x12C\n" +
+	"\fSubmitAnswer\x12\x18.sia.SubmitAnswerRequest\x1a\x19.sia.SubmitAnswerResponse\x12F\n" +
+	"\rCloseQuestion\x12\x19.sia.CloseQuestionRequest\x1a\x1a.sia.CloseQuestionResponse\x12>\n" +
+	"\x14SubscribeToQuestions\x12\x15.sia.SubscribeRequest\x1a\r.sia.Question0\x01B\vZ\tsia/protob\x06proto3"
 
 var (
 	file_proto_sia_proto_rawDescOnce sync.Once
@@ -484,28 +1109,50 @@ func file_proto_sia_proto_rawDescGZIP() []byte {
 	return file_proto_sia_proto_rawDescData
 }
 
-var file_proto_sia_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_sia_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_proto_sia_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_proto_sia_proto_goTypes = []any{
-	(*JoinRequest)(nil),           // 0: sia.JoinRequest
-	(*JoinResponse)(nil),          // 1: sia.JoinResponse
-	(*HeartbeatRequest)(nil),      // 2: sia.HeartbeatRequest
-	(*HeartbeatResponse)(nil),     // 3: sia.HeartbeatResponse
-	(*SecurityEventRequest)(nil),  // 4: sia.SecurityEventRequest
-	(*SecurityEventResponse)(nil), // 5: sia.SecurityEventResponse
-	(*StudentStatus)(nil),         // 6: sia.StudentStatus
+	(QuestionType)(0),                 // 0: sia.QuestionType
+	(*QuestionOption)(nil),            // 1: sia.QuestionOption
+	(*Question)(nil),                  // 2: sia.Question
+	(*SubmitAnswerRequest)(nil),       // 3: sia.SubmitAnswerRequest
+	(*SubmitAnswerResponse)(nil),      // 4: sia.SubmitAnswerResponse
+	(*BroadcastQuestionRequest)(nil),  // 5: sia.BroadcastQuestionRequest
+	(*BroadcastQuestionResponse)(nil), // 6: sia.BroadcastQuestionResponse
+	(*CloseQuestionRequest)(nil),      // 7: sia.CloseQuestionRequest
+	(*CloseQuestionResponse)(nil),     // 8: sia.CloseQuestionResponse
+	(*SubscribeRequest)(nil),          // 9: sia.SubscribeRequest
+	(*JoinRequest)(nil),               // 10: sia.JoinRequest
+	(*JoinResponse)(nil),              // 11: sia.JoinResponse
+	(*HeartbeatRequest)(nil),          // 12: sia.HeartbeatRequest
+	(*HeartbeatResponse)(nil),         // 13: sia.HeartbeatResponse
+	(*SecurityEventRequest)(nil),      // 14: sia.SecurityEventRequest
+	(*SecurityEventResponse)(nil),     // 15: sia.SecurityEventResponse
+	(*StudentStatus)(nil),             // 16: sia.StudentStatus
 }
 var file_proto_sia_proto_depIdxs = []int32{
-	0, // 0: sia.SIAService.Join:input_type -> sia.JoinRequest
-	2, // 1: sia.SIAService.Heartbeat:input_type -> sia.HeartbeatRequest
-	4, // 2: sia.SIAService.ReportSecurityEvent:input_type -> sia.SecurityEventRequest
-	1, // 3: sia.SIAService.Join:output_type -> sia.JoinResponse
-	3, // 4: sia.SIAService.Heartbeat:output_type -> sia.HeartbeatResponse
-	5, // 5: sia.SIAService.ReportSecurityEvent:output_type -> sia.SecurityEventResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: sia.Question.type:type_name -> sia.QuestionType
+	1,  // 1: sia.Question.options:type_name -> sia.QuestionOption
+	2,  // 2: sia.BroadcastQuestionRequest.question:type_name -> sia.Question
+	10, // 3: sia.SIAService.Join:input_type -> sia.JoinRequest
+	12, // 4: sia.SIAService.Heartbeat:input_type -> sia.HeartbeatRequest
+	14, // 5: sia.SIAService.ReportSecurityEvent:input_type -> sia.SecurityEventRequest
+	5,  // 6: sia.SIAService.BroadcastQuestion:input_type -> sia.BroadcastQuestionRequest
+	3,  // 7: sia.SIAService.SubmitAnswer:input_type -> sia.SubmitAnswerRequest
+	7,  // 8: sia.SIAService.CloseQuestion:input_type -> sia.CloseQuestionRequest
+	9,  // 9: sia.SIAService.SubscribeToQuestions:input_type -> sia.SubscribeRequest
+	11, // 10: sia.SIAService.Join:output_type -> sia.JoinResponse
+	13, // 11: sia.SIAService.Heartbeat:output_type -> sia.HeartbeatResponse
+	15, // 12: sia.SIAService.ReportSecurityEvent:output_type -> sia.SecurityEventResponse
+	6,  // 13: sia.SIAService.BroadcastQuestion:output_type -> sia.BroadcastQuestionResponse
+	4,  // 14: sia.SIAService.SubmitAnswer:output_type -> sia.SubmitAnswerResponse
+	8,  // 15: sia.SIAService.CloseQuestion:output_type -> sia.CloseQuestionResponse
+	2,  // 16: sia.SIAService.SubscribeToQuestions:output_type -> sia.Question
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_proto_sia_proto_init() }
@@ -518,13 +1165,14 @@ func file_proto_sia_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_sia_proto_rawDesc), len(file_proto_sia_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   7,
+			NumEnums:      1,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_proto_sia_proto_goTypes,
 		DependencyIndexes: file_proto_sia_proto_depIdxs,
+		EnumInfos:         file_proto_sia_proto_enumTypes,
 		MessageInfos:      file_proto_sia_proto_msgTypes,
 	}.Build()
 	File_proto_sia_proto = out.File

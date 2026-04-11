@@ -18,40 +18,53 @@
         button:hover { background: #1557b0; }
         #joinForm { display: block; }
         #statusView { display: none; }
+
+        /* Overlay de Preguntas */
+        #questionOverlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .question-card { 
+            background: white; width: 90%; max-width: 450px; padding: 25px; border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-top: 5px solid #1a73e8; text-align: left;
+        }
+        .option-btn { 
+            display: block; width: 100%; padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; 
+            border-radius: 6px; background: white; text-align: left; cursor: pointer; font-family: inherit;
+        }
+        .option-btn:hover:not(:disabled) { border-color: #1a73e8; background: #f8f9ff; }
+        .option-btn.selected { border-color: #1a73e8; background: #1a73e8; color: white; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-family: inherit; resize: none; box-sizing: border-box; }
+        .submit-btn { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
+        .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>SIA Estudiante</h1>
-        
-        <!-- Formulario de Ingreso -->
-        <div id="joinForm">
-            <p class="info">Ingresa a tu sala de evaluación</p>
-            <input type="text" id="inputRoom" placeholder="Código de Sala (ej. 1987AE)" style="text-transform: uppercase;">
-            <input type="text" id="inputName" placeholder="Tu Nombre Completo">
-            <button onclick="joinRoom()">UNIRSE A LA SALA</button>
-            <p id="loginError" class="alert"></p>
-        </div>
-
-        <!-- Vista de Estado -->
+...
         <div id="statusView">
-            <p id="studentName" class="info">Cargando...</p>
-            <div id="statusBox" class="status offline">CONECTANDO...</div>
-            <div class="info">
-                ID: <span id="clientId">---</span><br>
-                Sala: <span id="roomCode">---</span>
-            </div>
+...
             <p id="focusAlert" class="alert">¡Atención! Has perdido el foco del navegador. Esto ha sido reportado.</p>
+        </div>
+    </div>
+
+    <!-- Módulo de Preguntas Overlay -->
+    <div id="questionOverlay">
+        <div class="question-card">
+            <h3 style="margin-top:0; color:#1a73e8">📋 Pregunta del Profesor</h3>
+            <p id="qText" style="font-weight:bold; margin-bottom:20px"></p>
+            <div id="qOptions"></div>
+            <p id="qFeedback" style="text-align:center; font-weight:bold; margin-top:10px; display:none"></p>
+            <button id="qSubmit" class="submit-btn" onclick="sendAnswer()">ENVIAR RESPUESTA</button>
         </div>
     </div>
 
     <script>
         const joinForm = document.getElementById('joinForm');
-        const statusView = document.getElementById('statusView');
-        const statusBox = document.getElementById('statusBox');
-        const focusAlert = document.getElementById('focusAlert');
-        const loginError = document.getElementById('loginError');
+...
         let ws;
+        let currentQuestion = null;
+        let selectedOption = null;
 
         function connectWS() {
             ws = new WebSocket('ws://' + window.location.host + '/ws-local');
@@ -73,6 +86,12 @@
                 } else if (data.type === 'error') {
                     loginError.textContent = data.message;
                     loginError.style.display = 'block';
+                } else if (data.type === 'question_incoming') {
+                    showQuestion(data);
+                } else if (data.type === 'answer_result') {
+                    showAnswerResult(data.accepted);
+                } else if (data.type === 'question_closed') {
+                    hideQuestion();
                 }
             };
 
@@ -83,7 +102,77 @@
             };
         }
 
+        function showQuestion(q) {
+            currentQuestion = q;
+            selectedOption = null;
+            document.getElementById('qText').textContent = q.text;
+            const optionsDiv = document.getElementById('qOptions');
+            optionsDiv.innerHTML = '';
+            
+            if (q.question_type === 'MULTIPLE_CHOICE') {
+                q.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'option-btn';
+                    btn.innerHTML = `<strong>${opt.id}</strong>: ${opt.text}`;
+                    btn.onclick = () => selectOpt(opt.id, btn);
+                    optionsDiv.appendChild(btn);
+                });
+            } else {
+                const txt = document.createElement('textarea');
+                txt.id = 'qTextAnswer';
+                txt.rows = 4;
+                txt.placeholder = 'Escribe tu respuesta aquí...';
+                optionsDiv.appendChild(txt);
+            }
+
+            document.getElementById('qSubmit').disabled = false;
+            document.getElementById('qSubmit').style.display = 'block';
+            document.getElementById('qFeedback').style.display = 'none';
+            document.getElementById('questionOverlay').style.display = 'flex';
+        }
+
+        function selectOpt(id, btn) {
+            selectedOption = id;
+            document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        function sendAnswer() {
+            let answer = '';
+            if (currentQuestion.question_type === 'MULTIPLE_CHOICE') {
+                if (!selectedOption) return alert("Selecciona una opción");
+                answer = selectedOption;
+            } else {
+                answer = document.getElementById('qTextAnswer').value.trim();
+                if (!answer) return alert("Escribe tu respuesta");
+            }
+
+            ws.send(JSON.stringify({
+                type: 'submit_answer',
+                question_id: currentQuestion.question_id,
+                answer: answer
+            }));
+            
+            document.getElementById('qSubmit').disabled = true;
+            document.querySelectorAll('.option-btn, #qTextAnswer').forEach(el => el.disabled = true);
+        }
+
+        function showAnswerResult(accepted) {
+            const fb = document.getElementById('qFeedback');
+            fb.textContent = accepted ? '✓ Enviado' : '✗ Error al enviar';
+            fb.style.color = accepted ? '#1e8e3e' : '#d93025';
+            fb.style.display = 'block';
+            if (accepted) document.getElementById('qSubmit').style.display = 'none';
+            else document.getElementById('qSubmit').disabled = false;
+        }
+
+        function hideQuestion() {
+            document.getElementById('questionOverlay').style.display = 'none';
+            currentQuestion = null;
+        }
+
         function joinRoom() {
+...
             const room = document.getElementById('inputRoom').value.trim();
             const name = document.getElementById('inputName').value.trim();
             

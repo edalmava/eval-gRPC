@@ -8,14 +8,79 @@ service SIAService {
   rpc Join(JoinRequest) returns (JoinResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc ReportSecurityEvent(SecurityEventRequest) returns (SecurityEventResponse);
+
+  // Módulo de Preguntas
+  rpc BroadcastQuestion(BroadcastQuestionRequest) returns (BroadcastQuestionResponse);
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
+  rpc CloseQuestion(CloseQuestionRequest) returns (CloseQuestionResponse);
+  rpc SubscribeToQuestions(SubscribeRequest) returns (stream Question);
+}
+
+// Tipos de pregunta
+enum QuestionType {
+  TEXT = 0;
+  MULTIPLE_CHOICE = 1;
+}
+
+message QuestionOption {
+  string id = 1;      // "A", "B", "C", "D"
+  string text = 2;
+}
+
+message Question {
+  string question_id = 1;
+  string room_code = 2;
+  string text = 3;
+  QuestionType type = 4;
+  repeated QuestionOption options = 5;  // vacío si type == TEXT
+  int64 created_at = 6;
+}
+
+message SubmitAnswerRequest {
+  string question_id = 1;
+  string client_id = 2;
+  string room_code = 3;
+  string answer = 4;       // opción ID ("A","B"...) o texto libre
+  int64 timestamp = 5;
+  string signature = 6;    // HMAC-SHA256 de (question_id + client_id + answer)
+}
+
+message SubmitAnswerResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message BroadcastQuestionRequest {
+  string room_code = 1;
+  Question question = 2;
+  string admin_signature = 3; // HMAC-SHA256 de (question_id + room_code)
+}
+
+message BroadcastQuestionResponse {
+  bool success = 1;
+  int32 students_notified = 2;
+}
+
+message CloseQuestionRequest {
+  string question_id = 1;
+  string room_code = 2;
+}
+
+message CloseQuestionResponse {
+  bool success = 1;
+  int32 total_answers = 2;
+}
+
+message SubscribeRequest {
+  string client_id = 1;
+  string room_code = 2;
 }
 
 message JoinRequest {
   string client_id = 1;
   string student_name = 2;
-  string room_code = 3;
-  string local_ip = 4;
-  string signature = 5; // HMAC-SHA256 signature
+  string local_ip = 3;
+  string signature = 4;
 }
 
 message JoinResponse {

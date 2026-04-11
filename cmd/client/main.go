@@ -138,6 +138,29 @@ func (app *ClientApp) handleLocalWS(w http.ResponseWriter, r *http.Request) {
 			app.RoomCode = room
 			go app.processJoin(conn, room, name)
 
+		case "submit_answer":
+			if app.GRPCClient == nil { return }
+			questionID := data["question_id"].(string)
+			answer := data["answer"].(string)
+			message := questionID + app.ClientID + answer
+			signature := utils.GenerateHMAC(message, app.RoomCode)
+
+			res, err := app.GRPCClient.SubmitAnswer(context.Background(), &pb.SubmitAnswerRequest{
+				QuestionId: questionID,
+				ClientId:   app.ClientID,
+				RoomCode:   app.RoomCode,
+				Answer:     answer,
+				Timestamp:  time.Now().Unix(),
+				Signature:  signature,
+			})
+			
+			accepted := (err == nil && res != nil && res.Accepted)
+			resultMsg, _ := json.Marshal(map[string]interface{}{
+				"type":     "answer_result",
+				"accepted": accepted,
+			})
+			conn.WriteMessage(websocket.TextMessage, resultMsg)
+
 		case "focus_lost":
 			if app.GRPCClient != nil {
 				fmt.Println("¡PÉRDIDA DE FOCO DETECTADA!")
@@ -177,7 +200,6 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	res, err := app.GRPCClient.Join(context.Background(), &pb.JoinRequest{
 		ClientId:    app.ClientID,
 		StudentName: name,
-		RoomCode:    room,
 		LocalIp:     localIP,
 		Signature:   signature,
 	})
@@ -199,6 +221,9 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	})
 	ws.WriteMessage(websocket.TextMessage, initMsg)
 
+	// Iniciar suscripción a preguntas
+	go app.subscribeToQuestions(ws, room)
+
 	// Heartbeat Loop
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
@@ -210,6 +235,39 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 			if err != nil { return }
 		}
 	}()
+}
+
+func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
+	stream, err := app.GRPCClient.SubscribeToQuestions(context.Background(), &pb.SubscribeRequest{
+		ClientId: app.ClientID,
+		RoomCode: room,
+	})
+	if err != nil {
+		log.Printf("Error al suscribirse a preguntas: %v", err)
+		return
+	}
+
+	for {
+		q, err := stream.Recv()
+		if err != nil {
+			log.Printf("Stream de preguntas cerrado: %v", err)
+			break
+		}
+
+		options := make([]map[string]string, 0)
+		for _, o := range q.Options {
+			options = append(options, map[string]string{"id": o.Id, "text": o.Text})
+		}
+
+		msg, _ := json.Marshal(map[string]interface{}{
+			"type":          "question_incoming",
+			"question_id":   q.QuestionId,
+			"text":          q.Text,
+			"question_type": q.Type.String(),
+			"options":       options,
+		})
+		ws.WriteMessage(websocket.TextMessage, msg)
+	}
 }
 
 func main() {
