@@ -37,16 +37,19 @@ func main() {
 	hub := api.NewHub()
 	go hub.Run()
 
+	// Instancia única del servidor gRPC para compartir con los handlers HTTP
+	siaServer := &api.SIAServer{
+		Manager: manager,
+		Hub:     hub,
+	}
+
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("Error al escuchar en puerto 50051: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterSIAServiceServer(grpcServer, &api.SIAServer{
-		Manager: manager,
-		Hub:     hub,
-	})
+	pb.RegisterSIAServiceServer(grpcServer, siaServer)
 
 	adminMux := http.NewServeMux()
 
@@ -120,9 +123,8 @@ func main() {
 			return
 		}
 
-		// Usamos el handler de gRPC directamente
-		server := &api.SIAServer{Manager: manager, Hub: hub}
-		res, err := server.BroadcastQuestion(r.Context(), &req)
+		// Usamos la instancia compartida
+		res, err := siaServer.BroadcastQuestion(r.Context(), &req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -141,8 +143,7 @@ func main() {
 			return
 		}
 
-		server := &api.SIAServer{Manager: manager, Hub: hub}
-		res, err := server.CloseQuestion(r.Context(), &req)
+		res, err := siaServer.CloseQuestion(r.Context(), &req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
