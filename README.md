@@ -6,8 +6,9 @@ SIA es un sistema de evaluación de aula diseñado para funcionar en redes local
 
 - **Descubrimiento Automático (mDNS):** Los clientes encuentran al servidor en la red local automáticamente usando el código de la sala. Cero configuración manual de IPs.
 - **Comunicación de Alto Rendimiento:** Utiliza **gRPC** con Protocol Buffers para una comunicación eficiente y tipada entre estudiantes y el servidor.
-- **Seguridad HMAC-SHA256:** Las solicitudes de unión están firmadas digitalmente usando el `RoomCode` como clave secreta, evitando suplantaciones.
-- **Monitoreo en Tiempo Real:** Interfaz administrativa vía WebSockets que muestra el estado de conexión y **alertas de pérdida de foco** del navegador en los estudiantes.
+- **Módulo de Preguntas en Clase:** El profesor puede lanzar preguntas (texto o opción múltiple) que aparecen instantáneamente en los dispositivos de los alumnos mediante **gRPC Server Streaming**.
+- **Monitoreo y Estadísticas en Vivo:** Interfaz administrativa que muestra el estado de conexión, alertas de pérdida de foco y gráficos de respuestas en tiempo real.
+- **Seguridad HMAC-SHA256:** Las solicitudes de unión y respuestas están firmadas digitalmente usando el `RoomCode` como clave secreta, evitando suplantaciones.
 - **Resiliencia Extrema:** Periodo de gracia de **2 minutos** para reconexión automática de estudiantes en caso de micro-cortes de red.
 - **Identidad Persistente:** Generación de `ClientID` único por dispositivo almacenado localmente.
 - **Apertura Automática:** El cliente detecta el navegador predeterminado y abre la interfaz de usuario automáticamente al iniciar.
@@ -15,10 +16,10 @@ SIA es un sistema de evaluación de aula diseñado para funcionar en redes local
 ## 🛠️ Arquitectura Técnica
 
 - **Lenguaje:** Go (Golang) con Workspace.
-- **Transporte:** gRPC (Puerto 50051 TCP).
+- **Transporte:** gRPC (Puerto 50051 TCP) con streams para difusión de preguntas.
 - **Descubrimiento:** mDNS / DNS-SD (Puerto 5353 UDP).
-- **Web UI:** HTML5/JavaScript (Vanilla) con WebSockets.
-- **Seguridad:** Rate Limiting (50 msg/s por cliente) y validación HMAC.
+- **Web UI:** HTML5/JavaScript (Vanilla) con WebSockets y CSS moderno.
+- **Seguridad:** Rate Limiting (50 msg/s por cliente) y validación HMAC-SHA256.
 
 ## 📋 Requisitos de Red (Servidor)
 
