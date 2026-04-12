@@ -67,24 +67,32 @@ func (m *Manager) SubmitAnswer(questionID, clientID, studentName, answer string)
 	return nil
 }
 
-// CloseQuestion cierra la pregunta activa y retorna el total de respuestas.
-func (m *Manager) CloseQuestion(questionID string) (int, error) {
+// CloseQuestion cierra la pregunta activa y retorna el total de respuestas, la opción correcta y el conteo por opción.
+func (m *Manager) CloseQuestion(questionID string) (total int, correct string, counts map[string]int, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.ActiveQuestion == nil || m.ActiveQuestion.QuestionID != questionID {
-		return 0, fmt.Errorf("pregunta %s no encontrada o no es la activa", questionID)
+		return 0, "", nil, fmt.Errorf("pregunta %s no encontrada o no es la activa", questionID)
 	}
 
 	m.ActiveQuestion.Open = false
-	total := len(m.ActiveQuestion.Answers)
+	total = len(m.ActiveQuestion.Answers)
+	correct = m.ActiveQuestion.CorrectOption
+	counts = make(map[string]int)
+
+	// Calcular conteo de votos por opción
+	for _, ans := range m.ActiveQuestion.Answers {
+		counts[ans.Answer]++
+	}
+
 	m.QuestionHistory[questionID] = m.ActiveQuestion
 	// Opcional: limitar historial a 50
 	if len(m.QuestionHistory) > 50 {
 		// Implementar limpieza si es necesario
 	}
 
-	return total, nil
+	return total, correct, counts, nil
 }
 
 // GetActiveQuestion retorna la pregunta activa actual (nil si no hay).

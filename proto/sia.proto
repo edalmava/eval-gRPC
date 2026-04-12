@@ -34,6 +34,7 @@ message Question {
   QuestionType type = 4;
   repeated QuestionOption options = 5;  // vacío si type == TEXT
   int64 created_at = 6;
+  string correct_option = 7;  // NUEVO: "A", "B", "C" o "D". Vacío si type == TEXT.
 }
 
 message SubmitAnswerRequest {
@@ -69,6 +70,8 @@ message CloseQuestionRequest {
 message CloseQuestionResponse {
   bool success = 1;
   int32 total_answers = 2;
+  string correct_option = 3;  // NUEVO
+  map<string, int32> counts = 4;  // NUEVO: conteo de votos por opción {"A":5,"B":2,...}
 }
 
 message SubscribeRequest {

@@ -128,6 +128,7 @@ type Question struct {
 	Type          QuestionType           `protobuf:"varint,4,opt,name=type,proto3,enum=sia.QuestionType" json:"type,omitempty"`
 	Options       []*QuestionOption      `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty"` // vacío si type == TEXT
 	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CorrectOption string                 `protobuf:"bytes,7,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"` // NUEVO: "A", "B", "C" o "D". Vacío si type == TEXT.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -202,6 +203,13 @@ func (x *Question) GetCreatedAt() int64 {
 		return x.CreatedAt
 	}
 	return 0
+}
+
+func (x *Question) GetCorrectOption() string {
+	if x != nil {
+		return x.CorrectOption
+	}
+	return ""
 }
 
 type SubmitAnswerRequest struct {
@@ -508,6 +516,8 @@ type CloseQuestionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	TotalAnswers  int32                  `protobuf:"varint,2,opt,name=total_answers,json=totalAnswers,proto3" json:"total_answers,omitempty"`
+	CorrectOption string                 `protobuf:"bytes,3,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"`                                         // NUEVO
+	Counts        map[string]int32       `protobuf:"bytes,4,rep,name=counts,proto3" json:"counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // NUEVO: conteo de votos por opción {"A":5,"B":2,...}
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -554,6 +564,20 @@ func (x *CloseQuestionResponse) GetTotalAnswers() int32 {
 		return x.TotalAnswers
 	}
 	return 0
+}
+
+func (x *CloseQuestionResponse) GetCorrectOption() string {
+	if x != nil {
+		return x.CorrectOption
+	}
+	return ""
+}
+
+func (x *CloseQuestionResponse) GetCounts() map[string]int32 {
+	if x != nil {
+		return x.Counts
+	}
+	return nil
 }
 
 type SubscribeRequest struct {
@@ -1019,7 +1043,7 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\x0fproto/sia.proto\x12\x03sia\"4\n" +
 	"\x0eQuestionOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\"\xd1\x01\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"\xf8\x01\n" +
 	"\bQuestion\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x1b\n" +
@@ -1028,7 +1052,8 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\x0e2\x11.sia.QuestionTypeR\x04type\x12-\n" +
 	"\aoptions\x18\x05 \x03(\v2\x13.sia.QuestionOptionR\aoptions\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\x03R\tcreatedAt\"\xc4\x01\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12%\n" +
+	"\x0ecorrect_option\x18\a \x01(\tR\rcorrectOption\"\xc4\x01\n" +
 	"\x13SubmitAnswerRequest\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x1b\n" +
@@ -1050,10 +1075,15 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\x14CloseQuestionRequest\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x1b\n" +
-	"\troom_code\x18\x02 \x01(\tR\broomCode\"V\n" +
+	"\troom_code\x18\x02 \x01(\tR\broomCode\"\xf8\x01\n" +
 	"\x15CloseQuestionResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
-	"\rtotal_answers\x18\x02 \x01(\x05R\ftotalAnswers\"L\n" +
+	"\rtotal_answers\x18\x02 \x01(\x05R\ftotalAnswers\x12%\n" +
+	"\x0ecorrect_option\x18\x03 \x01(\tR\rcorrectOption\x12>\n" +
+	"\x06counts\x18\x04 \x03(\v2&.sia.CloseQuestionResponse.CountsEntryR\x06counts\x1a9\n" +
+	"\vCountsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"L\n" +
 	"\x10SubscribeRequest\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x1b\n" +
 	"\troom_code\x18\x02 \x01(\tR\broomCode\"\x86\x01\n" +
@@ -1110,7 +1140,7 @@ func file_proto_sia_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_sia_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_sia_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_proto_sia_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_proto_sia_proto_goTypes = []any{
 	(QuestionType)(0),                 // 0: sia.QuestionType
 	(*QuestionOption)(nil),            // 1: sia.QuestionOption
@@ -1129,30 +1159,32 @@ var file_proto_sia_proto_goTypes = []any{
 	(*SecurityEventRequest)(nil),      // 14: sia.SecurityEventRequest
 	(*SecurityEventResponse)(nil),     // 15: sia.SecurityEventResponse
 	(*StudentStatus)(nil),             // 16: sia.StudentStatus
+	nil,                               // 17: sia.CloseQuestionResponse.CountsEntry
 }
 var file_proto_sia_proto_depIdxs = []int32{
 	0,  // 0: sia.Question.type:type_name -> sia.QuestionType
 	1,  // 1: sia.Question.options:type_name -> sia.QuestionOption
 	2,  // 2: sia.BroadcastQuestionRequest.question:type_name -> sia.Question
-	10, // 3: sia.SIAService.Join:input_type -> sia.JoinRequest
-	12, // 4: sia.SIAService.Heartbeat:input_type -> sia.HeartbeatRequest
-	14, // 5: sia.SIAService.ReportSecurityEvent:input_type -> sia.SecurityEventRequest
-	5,  // 6: sia.SIAService.BroadcastQuestion:input_type -> sia.BroadcastQuestionRequest
-	3,  // 7: sia.SIAService.SubmitAnswer:input_type -> sia.SubmitAnswerRequest
-	7,  // 8: sia.SIAService.CloseQuestion:input_type -> sia.CloseQuestionRequest
-	9,  // 9: sia.SIAService.SubscribeToQuestions:input_type -> sia.SubscribeRequest
-	11, // 10: sia.SIAService.Join:output_type -> sia.JoinResponse
-	13, // 11: sia.SIAService.Heartbeat:output_type -> sia.HeartbeatResponse
-	15, // 12: sia.SIAService.ReportSecurityEvent:output_type -> sia.SecurityEventResponse
-	6,  // 13: sia.SIAService.BroadcastQuestion:output_type -> sia.BroadcastQuestionResponse
-	4,  // 14: sia.SIAService.SubmitAnswer:output_type -> sia.SubmitAnswerResponse
-	8,  // 15: sia.SIAService.CloseQuestion:output_type -> sia.CloseQuestionResponse
-	2,  // 16: sia.SIAService.SubscribeToQuestions:output_type -> sia.Question
-	10, // [10:17] is the sub-list for method output_type
-	3,  // [3:10] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	17, // 3: sia.CloseQuestionResponse.counts:type_name -> sia.CloseQuestionResponse.CountsEntry
+	10, // 4: sia.SIAService.Join:input_type -> sia.JoinRequest
+	12, // 5: sia.SIAService.Heartbeat:input_type -> sia.HeartbeatRequest
+	14, // 6: sia.SIAService.ReportSecurityEvent:input_type -> sia.SecurityEventRequest
+	5,  // 7: sia.SIAService.BroadcastQuestion:input_type -> sia.BroadcastQuestionRequest
+	3,  // 8: sia.SIAService.SubmitAnswer:input_type -> sia.SubmitAnswerRequest
+	7,  // 9: sia.SIAService.CloseQuestion:input_type -> sia.CloseQuestionRequest
+	9,  // 10: sia.SIAService.SubscribeToQuestions:input_type -> sia.SubscribeRequest
+	11, // 11: sia.SIAService.Join:output_type -> sia.JoinResponse
+	13, // 12: sia.SIAService.Heartbeat:output_type -> sia.HeartbeatResponse
+	15, // 13: sia.SIAService.ReportSecurityEvent:output_type -> sia.SecurityEventResponse
+	6,  // 14: sia.SIAService.BroadcastQuestion:output_type -> sia.BroadcastQuestionResponse
+	4,  // 15: sia.SIAService.SubmitAnswer:output_type -> sia.SubmitAnswerResponse
+	8,  // 16: sia.SIAService.CloseQuestion:output_type -> sia.CloseQuestionResponse
+	2,  // 17: sia.SIAService.SubscribeToQuestions:output_type -> sia.Question
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_proto_sia_proto_init() }
@@ -1166,7 +1198,7 @@ func file_proto_sia_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_sia_proto_rawDesc), len(file_proto_sia_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

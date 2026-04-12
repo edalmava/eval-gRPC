@@ -44,3 +44,12 @@ func GetLocalIP() (string, error) {
 	}
 	return "", fmt.Errorf("no se encontró una dirección IP local")
 }
+
+// MapIntToInt32 convierte un mapa de string:int a string:int32 (común en proto).
+func MapIntToInt32(in map[string]int) map[string]int32 {
+	out := make(map[string]int32)
+	for k, v := range in {
+		out[k] = int32(v)
+	}
+	return out
+}

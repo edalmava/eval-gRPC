@@ -300,6 +300,25 @@
                 </div>
             </div>
 
+            <div id="correctOptSection" style="display:none; margin-top: 12px;">
+                <label style="font-size: 0.9rem; color: var(--text-muted); display: block; margin-bottom: 8px;">Respuesta correcta:</label>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <label class="correct-radio" style="background:#e53935"><input type="radio" name="correctOpt" value="A"> A</label>
+                    <label class="correct-radio" style="background:#1e88e5"><input type="radio" name="correctOpt" value="B"> B</label>
+                    <label class="correct-radio" style="background:#43a047"><input type="radio" name="correctOpt" value="C"> C</label>
+                    <label class="correct-radio" style="background:#fb8c00"><input type="radio" name="correctOpt" value="D"> D</label>
+                </div>
+            </div>
+
+            <style>
+                .correct-radio {
+                    padding: 8px 16px; border-radius: 8px; color: #fff; font-weight: 700; cursor: pointer;
+                    border: 3px solid transparent; transition: border-color 0.2s;
+                }
+                .correct-radio input { display: none; }
+                .correct-radio:has(input:checked) { border-color: #fff; outline: 3px solid var(--blue); }
+            </style>
+
             <button class="btn-launch" id="btnLaunch" onclick="launchQuestion()">🚀 Lanzar Pregunta</button>
         </div>
 
@@ -452,6 +471,7 @@ function logEvent(d, type) {
 function toggleOpts() {
     const isMulti = document.getElementById('qType').value === 'MULTIPLE_CHOICE';
     document.getElementById('optsGrid').style.display = isMulti ? 'grid' : 'none';
+    document.getElementById('correctOptSection').style.display = isMulti ? 'block' : 'none';
 }
 
 async function generateHMAC(message, key) {
@@ -470,12 +490,17 @@ async function launchQuestion() {
     const rc = roomCode.toUpperCase();
 
     const options = [];
+    let correctOption = "";
     if (type === 'MULTIPLE_CHOICE') {
         ['A','B','C','D'].forEach(id => {
             const t = document.getElementById('opt'+id).value.trim();
             if (t) options.push({id, text: t});
         });
         if (options.length < 2) { alert('Agrega al menos 2 opciones'); return; }
+        
+        const selected = document.querySelector('input[name="correctOpt"]:checked');
+        if (!selected) { alert('Selecciona la respuesta correcta'); return; }
+        correctOption = selected.value;
     }
 
     const sig = await generateHMAC(qid + rc, rc);
@@ -485,7 +510,8 @@ async function launchQuestion() {
         question: {
             question_id: qid, room_code: rc, text, options,
             type: type === 'TEXT' ? 0 : 1,
-            created_at: Math.floor(Date.now()/1000)
+            created_at: Math.floor(Date.now()/1000),
+            correct_option: correctOption
         }
     };
 
@@ -519,9 +545,9 @@ function renderResultBars(options) {
     const container = document.getElementById('resultBars');
     if (!options || options.length === 0) { container.innerHTML = ''; return; }
     container.innerHTML = options.map((o, i) => `
-        <div class="result-bar-item">
+        <div class="result-bar-item" id="bar-${o.id || o.ID || i}">
             <div class="rbi-fill" id="fill-${o.id || o.ID || i}"></div>
-            <span class="rbi-label">${o.id || o.ID || String.fromCharCode(65+i)}</span>
+            <span class="rbi-label" id="label-${o.id || o.ID || i}">${o.id || o.ID || String.fromCharCode(65+i)}</span>
             <span class="rbi-text">${o.text || o.Text || ''}</span>
             <span class="rbi-count" id="cnt-${o.id || o.ID || i}">0</span>
         </div>
@@ -562,14 +588,31 @@ function onNewAnswer(d) {
 function onQuestionClosed(d) {
     clearTimer();
     const total = Object.values(answerCounts).reduce((a,b)=>a+b,0);
-    showPodium(total);
+    
+    // Resaltar respuesta correcta
+    if (d.correct_option) {
+        document.querySelectorAll('.result-bar-item').forEach(bar => {
+            if (bar.id === 'bar-' + d.correct_option) {
+                bar.style.outline = '4px solid #fff';
+                bar.style.zIndex = '10';
+                const label = document.getElementById('label-' + d.correct_option);
+                if (label) label.textContent = '✓ ' + label.textContent;
+            } else {
+                bar.style.opacity = '0.4';
+            }
+        });
+    }
+
+    showPodium(total, d.correct_option);
     setTimeout(() => {
         activeQuestion = null;
         document.getElementById('active-panel').style.display = 'none';
         document.getElementById('builder-card').style.display = 'block';
         document.getElementById('btnLaunch').disabled = false;
         document.getElementById('qText').value = '';
-    }, 500);
+        // Reset radios
+        document.querySelectorAll('input[name="correctOpt"]').forEach(r => r.checked = false);
+    }, 4500); // Un poco más de tiempo para ver el resalte
 }
 
 async function closeQuestion() {
@@ -608,7 +651,7 @@ function clearTimer() {
 }
 
 // ---- Podium ----
-function showPodium(total) {
+function showPodium(total, correctOption) {
     const opts = activeQuestion ? (activeQuestion.options || activeQuestion.Options || []) : [];
     const maxCount = Math.max(...Object.values(answerCounts), 1);
     document.getElementById('podiumSub').textContent = `Total respuestas: ${total} de ${students.size} estudiantes`;

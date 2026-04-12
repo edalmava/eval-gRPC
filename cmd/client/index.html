@@ -234,6 +234,36 @@
             text-align: center; padding: 16px; font-weight: 700; font-size: 1rem;
             display: none;
         }
+
+        /* --- FEEDBACK SCREEN --- */
+        .feedback-screen {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 24px; text-align: center; color: #fff;
+            animation: fadeIn 0.4s ease; z-index: 2000;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .fb-icon { font-size: 6rem; margin-bottom: 20px; }
+        .fb-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 12px; }
+        .fb-text { font-size: 1.1rem; opacity: 0.9; margin-bottom: 24px; }
+
+        .fb-correct { background: #1b5e20; }
+        .fb-wrong { background: #7f0000; }
+        .fb-timeout { background: #212121; }
+
+        .fb-badge {
+            display: inline-block; padding: 10px 24px; border-radius: 12px;
+            font-weight: 800; font-size: 1.2rem; margin-top: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .anim-pop { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop {
+            0% { transform: scale(0); }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -292,11 +322,7 @@
         <div class="q-body">
             <!-- Se llena dinámicamente -->
             <div id="qAnswerArea"></div>
-            <div class="feedback-wrap" id="feedbackWrap">
-                <div class="feedback-icon" id="feedbackIcon"></div>
-                <div class="feedback-msg" id="feedbackMsg"></div>
-                <div class="feedback-sub" id="feedbackSub">Esperando al profesor...</div>
-            </div>
+            <div id="qFeedbackArea"></div>
         </div>
         <div class="q-closed-bar" id="qClosedBar">✅ Pregunta cerrada por el profesor</div>
     </div>
@@ -305,7 +331,7 @@
 const OPT_ICONS = { A: '🔴', B: '🔵', C: '🟢', D: '🟠' };
 const OPT_CLASSES = { A: 'opt-A', B: 'opt-B', C: 'opt-C', D: 'opt-D' };
 
-let ws, currentQ = null, timerInterval = null, answered = false;
+let ws, currentQ = null, timerInterval = null, answered = false, feedbackShown = false;
 let myName = '', myRoom = '', myId = '';
 
 // === WebSocket ===
@@ -323,6 +349,7 @@ function connectWS() {
         else if (d.type === 'question_incoming') showQuestion(d);
         else if (d.type === 'answer_result') onAnswerResult(d.accepted);
         else if (d.type === 'question_closed') onQuestionClosed();
+        else if (d.type === 'question_result') onQuestionResult(d);
     };
 }
 
@@ -361,8 +388,9 @@ function onInit(d) {
 function showQuestion(q) {
     currentQ = q;
     answered = false;
+    feedbackShown = false;
     document.getElementById('qText').textContent = q.text;
-    document.getElementById('feedbackWrap').classList.remove('show');
+    document.getElementById('qFeedbackArea').innerHTML = '';
     document.getElementById('qClosedBar').style.display = 'none';
     document.getElementById('qAnswerArea').style.display = '';
 
@@ -431,25 +459,73 @@ function disableOptions() {
 function onAnswerResult(accepted) {
     clearTimer();
     document.getElementById('qAnswerArea').style.display = 'none';
-    const fw = document.getElementById('feedbackWrap');
-    document.getElementById('feedbackIcon').textContent = accepted ? '✅' : '❌';
-    document.getElementById('feedbackMsg').textContent = accepted ? '¡Respuesta enviada!' : 'No se pudo enviar';
-    document.getElementById('feedbackSub').textContent = 'Esperando al profesor...';
-    fw.classList.add('show');
+    const area = document.getElementById('qFeedbackArea');
+    area.innerHTML = `
+        <div class="feedback-wrap show">
+            <div class="feedback-icon">${accepted ? '✅' : '❌'}</div>
+            <div class="feedback-msg">${accepted ? '¡Respuesta enviada!' : 'No se pudo enviar'}</div>
+            <div class="feedback-sub">Esperando al profesor...</div>
+        </div>
+    `;
 }
 
 function onQuestionClosed() {
     clearTimer();
+    if (feedbackShown) return;
     document.getElementById('qClosedBar').style.display = 'block';
     document.getElementById('qAnswerArea').style.display = 'none';
     if (!answered) {
-        const fw = document.getElementById('feedbackWrap');
-        document.getElementById('feedbackIcon').textContent = '⏱';
-        document.getElementById('feedbackMsg').textContent = 'Tiempo agotado';
-        document.getElementById('feedbackSub').textContent = 'No respondiste a tiempo';
-        fw.classList.add('show');
+        const area = document.getElementById('qFeedbackArea');
+        area.innerHTML = `
+            <div class="feedback-wrap show">
+                <div class="feedback-icon">⏱</div>
+                <div class="feedback-msg">Tiempo agotado</div>
+                <div class="feedback-sub">No respondiste a tiempo</div>
+            </div>
+        `;
     }
-    setTimeout(() => switchScreen('lobbyScreen'), 2800);
+}
+
+function onQuestionResult(d) {
+    clearTimer();
+    feedbackShown = true;
+    const area = document.getElementById('qFeedbackArea');
+    document.getElementById('qAnswerArea').style.display = 'none';
+    document.getElementById('qClosedBar').style.display = 'none';
+    
+    let cls = 'fb-timeout', icon = '⏱', title = 'Pregunta cerrada', text = '';
+    
+    if (d.no_answer) {
+        title = 'Tiempo agotado';
+        text = d.correct_option ? 'La correcta era:' : 'No respondiste a tiempo';
+    } else if (d.is_correct) {
+        cls = 'fb-correct'; icon = '✅'; title = '¡Correcto!';
+        text = 'Respondiste: ' + d.student_answer;
+    } else {
+        cls = 'fb-wrong'; icon = '❌'; title = '¡Incorrecto!';
+        text = 'La correcta era:';
+    }
+
+    let badgeHtml = '';
+    if (d.correct_option && (d.no_answer || !d.is_correct)) {
+        badgeHtml = `<div class="fb-badge anim-pop ${OPT_CLASSES[d.correct_option]}">${d.correct_option}</div>`;
+    } else if (d.is_correct) {
+        badgeHtml = `<div class="fb-badge anim-pop ${OPT_CLASSES[d.student_answer]}">${d.student_answer}</div>`;
+    }
+
+    area.innerHTML = `
+        <div class="feedback-screen ${cls}">
+            <div class="fb-icon anim-pop">${icon}</div>
+            <div class="fb-title">${title}</div>
+            <div class="fb-text">${text}</div>
+            ${badgeHtml}
+        </div>
+    `;
+
+    setTimeout(() => {
+        switchScreen('lobbyScreen');
+        feedbackShown = false;
+    }, 3500);
 }
 
 // === Timer ===

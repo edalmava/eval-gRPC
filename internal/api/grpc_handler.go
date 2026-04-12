@@ -34,19 +34,34 @@ func (s *SIAServer) BroadcastQuestion(ctx context.Context, req *pb.BroadcastQues
 		return &pb.BroadcastQuestionResponse{Success: false}, nil
 	}
 
+	// Validar correct_option si es MULTIPLE_CHOICE
+	if req.Question.Type == pb.QuestionType_MULTIPLE_CHOICE && req.Question.CorrectOption != "" {
+		valid := false
+		for _, v := range []string{"A", "B", "C", "D"} {
+			if req.Question.CorrectOption == v {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return &pb.BroadcastQuestionResponse{Success: false}, fmt.Errorf("opción correcta inválida: %s", req.Question.CorrectOption)
+		}
+	}
+
 	options := make([]models.QuestionOption, len(req.Question.Options))
 	for i, o := range req.Question.Options {
 		options[i] = models.QuestionOption{ID: o.Id, Text: o.Text}
 	}
 
 	activeQ := &models.ActiveQuestion{
-		QuestionID: req.Question.QuestionId,
-		Text:       req.Question.Text,
-		Type:       req.Question.Type.String(),
-		Options:    options,
-		CreatedAt:  time.Unix(req.Question.CreatedAt, 0),
-		Open:       true,
-		Answers:    make(map[string]*models.Answer),
+		QuestionID:    req.Question.QuestionId,
+		Text:          req.Question.Text,
+		Type:          req.Question.Type.String(),
+		Options:       options,
+		CorrectOption: req.Question.CorrectOption, // Almacenar en el Manager
+		CreatedAt:     time.Unix(req.Question.CreatedAt, 0),
+		Open:          true,
+		Answers:       make(map[string]*models.Answer),
 	}
 
 	if err := s.Manager.OpenQuestion(activeQ); err != nil {
@@ -59,11 +74,14 @@ func (s *SIAServer) BroadcastQuestion(ctx context.Context, req *pb.BroadcastQues
 		"question": activeQ,
 	})
 
-	// Broadcast vía gRPC streams a Estudiantes
+	// Broadcast vía gRPC streams a Estudiantes (SIN correct_option)
 	notified := 0
+	studentQuestion := *req.Question
+	studentQuestion.CorrectOption = "" // Omitir deliberadamente
+
 	s.questionStreams.Range(func(key, value interface{}) bool {
 		stream := value.(pb.SIAService_SubscribeToQuestionsServer)
-		if err := stream.Send(req.Question); err != nil {
+		if err := stream.Send(&studentQuestion); err != nil {
 			s.questionStreams.Delete(key)
 		} else {
 			notified++
@@ -108,18 +126,25 @@ func (s *SIAServer) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerReques
 
 // CloseQuestion cierra una pregunta y notifica a los administradores.
 func (s *SIAServer) CloseQuestion(ctx context.Context, req *pb.CloseQuestionRequest) (*pb.CloseQuestionResponse, error) {
-	total, err := s.Manager.CloseQuestion(req.QuestionId)
+	total, correct, counts, err := s.Manager.CloseQuestion(req.QuestionId)
 	if err != nil {
 		return &pb.CloseQuestionResponse{Success: false}, err
 	}
 
 	s.Hub.Broadcast(map[string]interface{}{
-		"type":          "question_closed",
-		"question_id":   req.QuestionId,
-		"total_answers": int32(total),
+		"type":           "question_closed",
+		"question_id":    req.QuestionId,
+		"total_answers":  int32(total),
+		"correct_option": correct,
+		"counts":         counts,
 	})
 
-	return &pb.CloseQuestionResponse{Success: true, TotalAnswers: int32(total)}, nil
+	return &pb.CloseQuestionResponse{
+		Success:       true,
+		TotalAnswers:  int32(total),
+		CorrectOption: correct,
+		Counts:        utils.MapIntToInt32(counts),
+	}, nil
 }
 
 // SubscribeToQuestions permite a los estudiantes recibir preguntas en tiempo real.
