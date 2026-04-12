@@ -2,226 +2,517 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>SIA - Estudiante</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
-        h1 { color: #1a73e8; margin-bottom: 0.5rem; }
-        .status { margin: 1.5rem 0; padding: 1rem; border-radius: 8px; font-weight: bold; }
-        .online { background: #e6f4ea; color: #1e8e3e; }
-        .offline { background: #fce8e6; color: #d93025; }
-        .info { font-size: 0.9rem; color: #5f6368; line-height: 1.6; }
-        .alert { color: #d93025; font-size: 0.8rem; margin-top: 1rem; display: none; }
-        input { width: 100%; padding: 0.8rem; margin: 0.5rem 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 0.8rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 1rem; }
-        button:hover { background: #1557b0; }
-        #joinForm { display: block; }
-        #statusView { display: none; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Overlay de Preguntas */
-        #questionOverlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000;
+        :root {
+            --blue: #1a73e8;
+            --green: #1e8e3e;
+            --green-bg: #e6f4ea;
+            --red: #d93025;
+            --red-bg: #fce8e6;
+            --surface: #fff;
+            --bg: #f0f2f5;
+            --text: #202124;
+            --text-muted: #5f6368;
+            --border: #dadce0;
         }
-        .question-card { 
-            background: white; width: 90%; max-width: 450px; padding: 25px; border-radius: 12px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-top: 5px solid #1a73e8; text-align: left;
+
+        html, body { height: 100%; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 16px;
         }
-        .option-btn { 
-            display: block; width: 100%; padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; 
-            border-radius: 6px; background: white; text-align: left; cursor: pointer; font-family: inherit;
-            color: #333;
+
+        /* === PANTALLAS === */
+        .screen { display: none; width: 100%; max-width: 420px; }
+        .screen.active { display: block; }
+
+        /* === LOGIN === */
+        .login-card {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+            padding: 32px 28px;
+            text-align: center;
         }
-        .option-btn:hover:not(:disabled) { border-color: #1a73e8; background: #f8f9ff; }
-        .option-btn.selected { border-color: #1a73e8; background: #1a73e8; color: white; }
-        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-family: inherit; resize: none; box-sizing: border-box; }
-        .submit-btn { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
-        .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .logo { font-size: 2.5rem; margin-bottom: 4px; }
+        .login-card h1 { font-size: 1.4rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+        .login-card .sub { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 24px; }
+        .field { margin-bottom: 14px; }
+        .field input {
+            width: 100%; padding: 13px 16px;
+            border: 1.5px solid var(--border); border-radius: 10px;
+            font-size: 1rem; font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .field input:focus { outline: none; border-color: var(--blue); }
+        #inputRoom { text-transform: uppercase; font-weight: 700; letter-spacing: 2px; font-size: 1.1rem; text-align: center; }
+        .btn-main {
+            width: 100%; padding: 14px; background: var(--blue); color: #fff;
+            border: none; border-radius: 10px; font-size: 1rem; font-weight: 700;
+            cursor: pointer; transition: background 0.2s, transform 0.1s;
+            margin-top: 4px;
+        }
+        .btn-main:hover { background: #1557b0; }
+        .btn-main:active { transform: scale(0.98); }
+        .btn-main:disabled { background: #bbb; cursor: not-allowed; }
+        .error-msg { color: var(--red); font-size: 0.85rem; margin-top: 10px; min-height: 20px; }
+
+        /* === LOBBY === */
+        .lobby-card {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+            padding: 28px;
+            text-align: center;
+        }
+        .lobby-card h2 { font-size: 1.1rem; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+        .student-name-display {
+            font-size: 1.5rem; font-weight: 700; margin-bottom: 20px;
+        }
+        .room-pill {
+            display: inline-block; background: #e8f0fe; color: var(--blue);
+            padding: 8px 20px; border-radius: 20px; font-weight: 700;
+            font-size: 1.1rem; letter-spacing: 2px; margin-bottom: 20px;
+        }
+        .conn-status {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            font-size: 0.9rem; color: var(--text-muted);
+            background: var(--bg); border-radius: 10px; padding: 12px;
+        }
+        .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--red); flex-shrink: 0; transition: background 0.4s;
+        }
+        .dot.on { background: var(--green); }
+        .dot.pulse { animation: pulse-green 1.5s infinite; }
+        @keyframes pulse-green {
+            0%,100% { box-shadow: 0 0 0 0 rgba(30,142,62,0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(30,142,62,0); }
+        }
+        .waiting-anim {
+            display: flex; justify-content: center; gap: 6px; margin-top: 24px;
+        }
+        .waiting-anim span {
+            width: 10px; height: 10px; border-radius: 50%; background: var(--border);
+            animation: bounce 1.2s infinite ease-in-out both;
+        }
+        .waiting-anim span:nth-child(1) { animation-delay: 0s; }
+        .waiting-anim span:nth-child(2) { animation-delay: 0.2s; }
+        .waiting-anim span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%,80%,100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        .focus-alert {
+            background: var(--red-bg); color: var(--red);
+            border-radius: 8px; padding: 10px 14px;
+            font-size: 0.85rem; font-weight: 600;
+            margin-top: 14px; display: none;
+            border: 1px solid rgba(217,48,37,0.25);
+        }
+
+        /* === PREGUNTA (pantalla completa Kahoot) === */
+        #questionScreen {
+            position: fixed; inset: 0;
+            background: #1a1a2e;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+        }
+        #questionScreen.active { display: flex; }
+
+        .q-header {
+            background: #16213e;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+        }
+        .q-timer-wrap {
+            position: relative; width: 52px; height: 52px; flex-shrink: 0;
+        }
+        .q-timer-wrap svg { width: 52px; height: 52px; transform: rotate(-90deg); }
+        .q-timer-wrap circle { fill: none; stroke-width: 4; r: 22; cx: 26; cy: 26; }
+        .q-timer-bg { stroke: rgba(255,255,255,0.15); }
+        .q-timer-prog {
+            stroke: #fff;
+            stroke-dasharray: 138;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear, stroke 0.4s;
+        }
+        .q-timer-num {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1.1rem; color: #fff;
+        }
+
+        .q-text-wrap {
+            flex: 1;
+        }
+        .q-text {
+            color: #fff; font-size: 1rem; font-weight: 600; line-height: 1.4;
+        }
+
+        .q-body {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 16px;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        /* Opciones Kahoot con colores e iconos */
+        .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .opt-btn {
+            border: none; border-radius: 12px;
+            padding: 20px 16px;
+            display: flex; align-items: center; gap: 12px;
+            cursor: pointer; font-family: inherit;
+            font-size: 0.95rem; font-weight: 700;
+            color: #fff;
+            transition: transform 0.12s, opacity 0.2s;
+            position: relative; overflow: hidden;
+            min-height: 80px;
+        }
+        .opt-btn:active { transform: scale(0.97); }
+        .opt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .opt-btn.selected { outline: 4px solid rgba(255,255,255,0.9); }
+        .opt-btn.correct { background: #2e7d32 !important; }
+        .opt-btn.wrong { background: #555 !important; opacity: 0.6; }
+
+        .opt-A { background: #e53935; }
+        .opt-B { background: #1e88e5; }
+        .opt-C { background: #43a047; }
+        .opt-D { background: #fb8c00; }
+        .opt-icon { font-size: 1.4rem; flex-shrink: 0; }
+        .opt-label { text-align: left; line-height: 1.3; }
+
+        /* Respuesta libre */
+        .free-text-wrap { display: flex; flex-direction: column; gap: 12px; }
+        .free-text-wrap textarea {
+            width: 100%; padding: 16px;
+            border: none; border-radius: 12px;
+            font-size: 1rem; font-family: inherit;
+            resize: none; min-height: 120px;
+            background: rgba(255,255,255,0.12); color: #fff;
+        }
+        .free-text-wrap textarea::placeholder { color: rgba(255,255,255,0.4); }
+        .free-text-wrap textarea:focus { outline: 2px solid rgba(255,255,255,0.6); }
+        .btn-send {
+            padding: 16px; border: none; border-radius: 12px;
+            background: #fff; color: #1a1a2e;
+            font-size: 1rem; font-weight: 800; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-send:hover { opacity: 0.9; }
+        .btn-send:active { transform: scale(0.98); }
+        .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Feedback después de responder */
+        .feedback-wrap {
+            text-align: center; padding: 24px;
+            display: none; flex-direction: column; align-items: center; gap: 12px;
+        }
+        .feedback-wrap.show { display: flex; }
+        .feedback-icon { font-size: 4rem; }
+        .feedback-msg { color: #fff; font-size: 1.2rem; font-weight: 700; }
+        .feedback-sub { color: rgba(255,255,255,0.6); font-size: 0.9rem; }
+
+        /* Closed overlay */
+        .q-closed-bar {
+            background: rgba(0,0,0,0.6); color: #fff;
+            text-align: center; padding: 16px; font-weight: 700; font-size: 1rem;
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>SIA Estudiante</h1>
-        
-        <!-- Formulario de Ingreso -->
-        <div id="joinForm">
-            <p class="info">Ingresa a tu sala de evaluación</p>
-            <input type="text" id="inputRoom" placeholder="Código de Sala (ej. 1987AE)" style="text-transform: uppercase;">
-            <input type="text" id="inputName" placeholder="Tu Nombre Completo">
-            <button onclick="joinRoom()">UNIRSE A LA SALA</button>
-            <p id="loginError" class="alert"></p>
-        </div>
 
-        <!-- Vista de Estado -->
-        <div id="statusView">
-            <p id="studentName" class="info">Cargando...</p>
-            <div id="statusBox" class="status offline">CONECTANDO...</div>
-            <div class="info">
-                ID: <span id="clientId">---</span><br>
-                Sala: <span id="roomCode">---</span>
+    <!-- LOGIN -->
+    <div class="screen active" id="loginScreen">
+        <div class="login-card">
+            <div class="logo">🎓</div>
+            <h1>SIA Estudiante</h1>
+            <p class="sub">Ingresa a tu sala de evaluación</p>
+            <div class="field">
+                <input type="text" id="inputRoom" placeholder="CÓDIGO DE SALA" autocomplete="off" autocapitalize="characters">
             </div>
-            <p id="focusAlert" class="alert">¡Atención! Has perdido el foco del navegador. Esto ha sido reportado.</p>
+            <div class="field">
+                <input type="text" id="inputName" placeholder="Tu nombre completo">
+            </div>
+            <button class="btn-main" id="btnJoin" onclick="joinRoom()">Entrar a la sala</button>
+            <div class="error-msg" id="errorMsg"></div>
         </div>
     </div>
 
-    <!-- Módulo de Preguntas Overlay -->
-    <div id="questionOverlay">
-        <div class="question-card">
-            <h3 style="margin-top:0; color:#1a73e8">📋 Pregunta del Profesor</h3>
-            <p id="qText" style="font-weight:bold; margin-bottom:20px"></p>
-            <div id="qOptions"></div>
-            <p id="qFeedback" style="text-align:center; font-weight:bold; margin-top:10px; display:none"></p>
-            <button id="qSubmit" class="submit-btn" onclick="sendAnswer()">ENVIAR RESPUESTA</button>
+    <!-- LOBBY / ESPERA -->
+    <div class="screen" id="lobbyScreen">
+        <div class="lobby-card">
+            <h2>¡Bienvenido!</h2>
+            <div class="student-name-display" id="displayName"></div>
+            <div class="room-pill" id="displayRoom"></div>
+            <div class="conn-status">
+                <div class="dot pulse" id="statusDot"></div>
+                <span id="statusText">Conectado — esperando pregunta...</span>
+            </div>
+            <div class="focus-alert" id="focusAlert">
+                ⚠️ ¡Perdiste el foco! Esto fue reportado al profesor.
+            </div>
+            <div class="waiting-anim">
+                <span></span><span></span><span></span>
+            </div>
         </div>
     </div>
 
-    <script>
-        const joinForm = document.getElementById('joinForm');
-        const statusView = document.getElementById('statusView');
-        const statusBox = document.getElementById('statusBox');
-        const focusAlert = document.getElementById('focusAlert');
-        const loginError = document.getElementById('loginError');
-        let ws;
-        let currentQuestion = null;
-        let selectedOption = null;
+    <!-- PREGUNTA (pantalla completa) -->
+    <div id="questionScreen">
+        <div class="q-header">
+            <div class="q-timer-wrap">
+                <svg viewBox="0 0 52 52">
+                    <circle class="q-timer-bg" r="22" cx="26" cy="26"/>
+                    <circle class="q-timer-prog" id="qTimerCircle" r="22" cx="26" cy="26"/>
+                </svg>
+                <div class="q-timer-num" id="qTimerNum">--</div>
+            </div>
+            <div class="q-text-wrap">
+                <div class="q-text" id="qText"></div>
+            </div>
+        </div>
 
-        function connectWS() {
-            ws = new WebSocket('ws://' + window.location.host + '/ws-local');
-            
-            ws.onopen = () => {
-                console.log("Conectado al backend local");
-            };
+        <div class="q-body">
+            <!-- Se llena dinámicamente -->
+            <div id="qAnswerArea"></div>
+            <div class="feedback-wrap" id="feedbackWrap">
+                <div class="feedback-icon" id="feedbackIcon"></div>
+                <div class="feedback-msg" id="feedbackMsg"></div>
+                <div class="feedback-sub" id="feedbackSub">Esperando al profesor...</div>
+            </div>
+        </div>
+        <div class="q-closed-bar" id="qClosedBar">✅ Pregunta cerrada por el profesor</div>
+    </div>
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                console.log("WS Local:", data);
+<script>
+const OPT_ICONS = { A: '🔴', B: '🔵', C: '🟢', D: '🟠' };
+const OPT_CLASSES = { A: 'opt-A', B: 'opt-B', C: 'opt-C', D: 'opt-D' };
 
-                if (data.type === 'init') {
-                    document.getElementById('studentName').textContent = data.name;
-                    document.getElementById('clientId').textContent = data.id;
-                    document.getElementById('roomCode').textContent = data.room;
-                    joinForm.style.display = 'none';
-                    statusView.style.display = 'block';
-                    statusBox.textContent = 'CONECTADO AL SERVIDOR';
-                    statusBox.className = 'status online';
-                } else if (data.type === 'error') {
-                    loginError.textContent = data.message;
-                    loginError.style.display = 'block';
-                } else if (data.type === 'question_incoming') {
-                    console.log("Nueva pregunta recibida:", data);
-                    showQuestion(data);
-                } else if (data.type === 'answer_result') {
-                    showAnswerResult(data.accepted);
-                } else if (data.type === 'question_closed') {
-                    hideQuestion();
-                }
-            };
+let ws, currentQ = null, timerInterval = null, answered = false;
+let myName = '', myRoom = '', myId = '';
 
-            ws.onclose = () => {
-                statusBox.textContent = 'DESCONECTADO DEL BACKEND';
-                statusBox.className = 'status offline';
-                setTimeout(connectWS, 2000);
-            };
+// === WebSocket ===
+function connectWS() {
+    ws = new WebSocket('ws://' + location.host + '/ws-local');
+    ws.onopen = () => setStatus(true);
+    ws.onclose = () => {
+        setStatus(false);
+        setTimeout(connectWS, 2000);
+    };
+    ws.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'init') onInit(d);
+        else if (d.type === 'error') showError(d.message);
+        else if (d.type === 'question_incoming') showQuestion(d);
+        else if (d.type === 'answer_result') onAnswerResult(d.accepted);
+        else if (d.type === 'question_closed') onQuestionClosed();
+    };
+}
+
+function setStatus(ok) {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    if (!dot) return;
+    dot.classList.toggle('on', ok);
+    dot.classList.toggle('pulse', ok);
+    txt.textContent = ok ? 'Conectado — esperando pregunta...' : 'Reconectando...';
+}
+
+// === Login ===
+function joinRoom() {
+    const room = document.getElementById('inputRoom').value.trim().toUpperCase();
+    const name = document.getElementById('inputName').value.trim();
+    showError('');
+    if (!room || !name) { showError('Completa todos los campos'); return; }
+    document.getElementById('btnJoin').disabled = true;
+    ws.send(JSON.stringify({ type: 'join_request', room, name }));
+}
+
+function showError(msg) {
+    document.getElementById('errorMsg').textContent = msg;
+    if (msg) document.getElementById('btnJoin').disabled = false;
+}
+
+function onInit(d) {
+    myName = d.name; myRoom = d.room; myId = d.id;
+    document.getElementById('displayName').textContent = d.name;
+    document.getElementById('displayRoom').textContent = d.room;
+    switchScreen('lobbyScreen');
+}
+
+// === Pregunta ===
+function showQuestion(q) {
+    currentQ = q;
+    answered = false;
+    document.getElementById('qText').textContent = q.text;
+    document.getElementById('feedbackWrap').classList.remove('show');
+    document.getElementById('qClosedBar').style.display = 'none';
+    document.getElementById('qAnswerArea').style.display = '';
+
+    const area = document.getElementById('qAnswerArea');
+    const isMulti = (q.question_type === 'MULTIPLE_CHOICE') && q.options && q.options.length > 0;
+
+    if (isMulti) {
+        area.innerHTML = `<div class="opt-grid" id="optGrid"></div>`;
+        const grid = document.getElementById('optGrid');
+        q.options.forEach(opt => {
+            const id = opt.id || opt.ID;
+            const text = opt.text || opt.Text;
+            const btn = document.createElement('button');
+            btn.className = 'opt-btn ' + (OPT_CLASSES[id] || 'opt-A');
+            btn.id = 'opt-btn-' + id;
+            btn.innerHTML = `<span class="opt-icon">${OPT_ICONS[id] || '▶'}</span><span class="opt-label">${id}: ${text}</span>`;
+            btn.onclick = () => selectOption(id);
+            grid.appendChild(btn);
+        });
+    } else {
+        area.innerHTML = `
+            <div class="free-text-wrap">
+                <textarea id="freeText" placeholder="Escribe tu respuesta..." rows="4"></textarea>
+                <button class="btn-send" id="btnSend" onclick="submitFree()">Enviar respuesta ↗</button>
+            </div>
+        `;
+    }
+
+    const duration = q.duration || 30;
+    startTimer(duration);
+    switchScreen('questionScreen');
+}
+
+function selectOption(id) {
+    if (answered) return;
+    document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+    const btn = document.getElementById('opt-btn-' + id);
+    if (btn) btn.classList.add('selected');
+    answered = true;
+    disableOptions();
+    ws.send(JSON.stringify({
+        type: 'submit_answer',
+        question_id: currentQ.question_id,
+        answer: id
+    }));
+}
+
+function submitFree() {
+    if (answered) return;
+    const text = document.getElementById('freeText').value.trim();
+    if (!text) { document.getElementById('freeText').focus(); return; }
+    answered = true;
+    document.getElementById('btnSend').disabled = true;
+    document.getElementById('freeText').disabled = true;
+    ws.send(JSON.stringify({
+        type: 'submit_answer',
+        question_id: currentQ.question_id,
+        answer: text
+    }));
+}
+
+function disableOptions() {
+    document.querySelectorAll('.opt-btn').forEach(b => b.disabled = true);
+}
+
+function onAnswerResult(accepted) {
+    clearTimer();
+    document.getElementById('qAnswerArea').style.display = 'none';
+    const fw = document.getElementById('feedbackWrap');
+    document.getElementById('feedbackIcon').textContent = accepted ? '✅' : '❌';
+    document.getElementById('feedbackMsg').textContent = accepted ? '¡Respuesta enviada!' : 'No se pudo enviar';
+    document.getElementById('feedbackSub').textContent = 'Esperando al profesor...';
+    fw.classList.add('show');
+}
+
+function onQuestionClosed() {
+    clearTimer();
+    document.getElementById('qClosedBar').style.display = 'block';
+    document.getElementById('qAnswerArea').style.display = 'none';
+    if (!answered) {
+        const fw = document.getElementById('feedbackWrap');
+        document.getElementById('feedbackIcon').textContent = '⏱';
+        document.getElementById('feedbackMsg').textContent = 'Tiempo agotado';
+        document.getElementById('feedbackSub').textContent = 'No respondiste a tiempo';
+        fw.classList.add('show');
+    }
+    setTimeout(() => switchScreen('lobbyScreen'), 2800);
+}
+
+// === Timer ===
+function startTimer(seconds) {
+    const circle = document.getElementById('qTimerCircle');
+    const num = document.getElementById('qTimerNum');
+    const circum = 2 * Math.PI * 22; // 138.23
+    circle.style.strokeDasharray = circum;
+    circle.style.strokeDashoffset = 0;
+    circle.style.stroke = '#fff';
+    num.textContent = seconds;
+    let rem = seconds;
+    clearTimer();
+    timerInterval = setInterval(() => {
+        rem--;
+        num.textContent = rem;
+        const offset = circum * (1 - rem / seconds);
+        circle.style.strokeDashoffset = offset;
+        if (rem <= 5) { circle.style.stroke = '#ef5350'; num.style.color = '#ef5350'; }
+        if (rem <= 0) {
+            clearTimer();
+            if (!answered) onQuestionClosed();
         }
+    }, 1000);
+}
+function clearTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
 
-        function showQuestion(q) {
-            currentQuestion = q;
-            selectedOption = null;
-            document.getElementById('qText').textContent = q.text;
-            const optionsDiv = document.getElementById('qOptions');
-            optionsDiv.innerHTML = '';
-            
-            if (q.question_type === 'MULTIPLE_CHOICE') {
-                q.options.forEach(opt => {
-                    const btn = document.createElement('button');
-                    btn.className = 'option-btn';
-                    btn.innerHTML = `<strong>${opt.id}</strong>: ${opt.text}`;
-                    btn.onclick = () => selectOpt(opt.id, btn);
-                    optionsDiv.appendChild(btn);
-                });
-            } else {
-                const txt = document.createElement('textarea');
-                txt.id = 'qTextAnswer';
-                txt.rows = 4;
-                txt.placeholder = 'Escribe tu respuesta aquí...';
-                optionsDiv.appendChild(txt);
-            }
+// === Navegación ===
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (id === 'questionScreen') {
+        el.style.display = 'flex';
+        el.classList.add('active');
+    } else {
+        document.getElementById('questionScreen').style.display = 'none';
+        document.getElementById('questionScreen').classList.remove('active');
+        if (el) el.classList.add('active');
+    }
+}
 
-            document.getElementById('qSubmit').disabled = false;
-            document.getElementById('qSubmit').style.display = 'block';
-            document.getElementById('qFeedback').style.display = 'none';
-            document.getElementById('questionOverlay').style.display = 'flex';
-        }
+// === Focus ===
+window.addEventListener('blur', () => {
+    if (ws && ws.readyState === WebSocket.OPEN && myRoom) {
+        ws.send(JSON.stringify({ type: 'focus_lost', timestamp: Date.now() }));
+        const fa = document.getElementById('focusAlert');
+        if (fa) fa.style.display = 'block';
+    }
+});
+window.addEventListener('focus', () => {
+    const fa = document.getElementById('focusAlert');
+    if (fa) fa.style.display = 'none';
+});
 
-        function selectOpt(id, btn) {
-            selectedOption = id;
-            document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-        }
+// === Inputs enter ===
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('inputRoom').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('inputName').focus(); });
+    document.getElementById('inputName').addEventListener('keydown', e => { if (e.key==='Enter') joinRoom(); });
+});
 
-        function sendAnswer() {
-            let answer = '';
-            if (currentQuestion.question_type === 'MULTIPLE_CHOICE') {
-                if (!selectedOption) return alert("Selecciona una opción");
-                answer = selectedOption;
-            } else {
-                answer = document.getElementById('qTextAnswer').value.trim();
-                if (!answer) return alert("Escribe tu respuesta");
-            }
-
-            ws.send(JSON.stringify({
-                type: 'submit_answer',
-                question_id: currentQuestion.question_id,
-                answer: answer
-            }));
-            
-            document.getElementById('qSubmit').disabled = true;
-            document.querySelectorAll('.option-btn, #qTextAnswer').forEach(el => el.disabled = true);
-        }
-
-        function showAnswerResult(accepted) {
-            const fb = document.getElementById('qFeedback');
-            fb.textContent = accepted ? '✓ Enviado' : '✗ Error al enviar';
-            fb.style.color = accepted ? '#1e8e3e' : '#d93025';
-            fb.style.display = 'block';
-            if (accepted) document.getElementById('qSubmit').style.display = 'none';
-            else document.getElementById('qSubmit').disabled = false;
-        }
-
-        function hideQuestion() {
-            document.getElementById('questionOverlay').style.display = 'none';
-            currentQuestion = null;
-        }
-
-        function joinRoom() {
-            const room = document.getElementById('inputRoom').value.trim();
-            const name = document.getElementById('inputName').value.trim();
-            
-            if (!room || !name) {
-                loginError.textContent = "Por favor completa todos los campos.";
-                loginError.style.display = 'block';
-                return;
-            }
-
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'join_request', room: room, name: name }));
-            }
-        }
-
-        // Detección de pérdida de foco
-        window.onblur = () => {
-            if (ws && ws.readyState === WebSocket.OPEN && statusView.style.display === 'block') {
-                ws.send(JSON.stringify({ type: 'focus_lost', timestamp: Date.now() }));
-                focusAlert.style.display = 'block';
-            }
-        };
-
-        window.onfocus = () => {
-            focusAlert.style.display = 'none';
-        };
-
-        connectWS();
-    </script>
+connectWS();
+</script>
 </body>
 </html>

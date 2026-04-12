@@ -39,7 +39,6 @@ func openBrowser(url string) {
 	case "linux":
 		err = exec.Command("xdg-open", url).Start()
 	case "windows":
-		// 'start' abre el navegador predeterminado en Windows
 		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	case "darwin":
 		err = exec.Command("open", url).Start()
@@ -75,7 +74,7 @@ func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error
 	}
 
 	entries := make(chan *zeroconf.ServiceEntry)
-	found := make(chan bool)
+	found := make(chan bool, 1)
 
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
@@ -87,11 +86,13 @@ func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error
 					} else if len(entry.AddrIPv6) > 0 {
 						addr = "[" + entry.AddrIPv6[0].String() + "]"
 					}
-
 					if addr != "" {
 						c.ServerAddr = fmt.Sprintf("%s:%d", addr, entry.Port)
 						fmt.Printf("Servidor encontrado en: %s\n", c.ServerAddr)
-						found <- true
+						select {
+						case found <- true:
+						default:
+						}
 						return
 					}
 				}
@@ -99,8 +100,7 @@ func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error
 		}
 	}(entries)
 
-	err = resolver.Browse(ctx, "_sia._tcp", "local.", entries)
-	if err != nil {
+	if err = resolver.Browse(ctx, "_sia._tcp", "local.", entries); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error
 	case <-found:
 		return nil
 	case <-time.After(7 * time.Second):
-		return fmt.Errorf("no se encontró servidor para la sala %s", targetRoom)
+		return fmt.Errorf("no se encontró servidor para la sala %s en la red local", targetRoom)
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -136,16 +136,17 @@ func (app *ClientApp) handleLocalWS(w http.ResponseWriter, r *http.Request) {
 		switch data["type"] {
 		case "join_request":
 			room := utils.NormalizeRoomCode(data["room"].(string))
-			name := data["name"].(string)
+			name, _ := data["name"].(string)
 			fmt.Printf("Solicitud de unión: Sala %s, Estudiante %s\n", room, name)
-			
 			app.RoomCode = room
 			go app.processJoin(conn, room, name)
 
 		case "submit_answer":
-			if app.GRPCClient == nil { return }
-			questionID := data["question_id"].(string)
-			answer := data["answer"].(string)
+			if app.GRPCClient == nil {
+				continue
+			}
+			questionID, _ := data["question_id"].(string)
+			answer, _ := data["answer"].(string)
 			message := questionID + app.ClientID + answer
 			signature := utils.GenerateHMAC(message, app.RoomCode)
 
@@ -157,13 +158,13 @@ func (app *ClientApp) handleLocalWS(w http.ResponseWriter, r *http.Request) {
 				Timestamp:  time.Now().Unix(),
 				Signature:  signature,
 			})
-			
-			accepted := (err == nil && res != nil && res.Accepted)
+
+			accepted := err == nil && res != nil && res.Accepted
 			resultMsg, _ := json.Marshal(map[string]interface{}{
 				"type":     "answer_result",
 				"accepted": accepted,
 			})
-			conn.WriteMessage(websocket.TextMessage, resultMsg)
+			_ = conn.WriteMessage(websocket.TextMessage, resultMsg)
 
 		case "focus_lost":
 			if app.GRPCClient != nil {
@@ -185,14 +186,14 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 
 	if err := app.DiscoverServer(ctx, room); err != nil {
 		errMsg, _ := json.Marshal(map[string]string{"type": "error", "message": err.Error()})
-		ws.WriteMessage(websocket.TextMessage, errMsg)
+		_ = ws.WriteMessage(websocket.TextMessage, errMsg)
 		return
 	}
 
 	conn, err := grpc.Dial(app.ServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		errMsg, _ := json.Marshal(map[string]string{"type": "error", "message": "Fallo conexión gRPC"})
-		ws.WriteMessage(websocket.TextMessage, errMsg)
+		errMsg, _ := json.Marshal(map[string]string{"type": "error", "message": "Fallo al conectar con el servidor gRPC"})
+		_ = ws.WriteMessage(websocket.TextMessage, errMsg)
 		return
 	}
 	app.GRPCClient = pb.NewSIAServiceClient(conn)
@@ -209,34 +210,38 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	})
 
 	if err != nil || !res.Success {
-		msg := "Error al unirse"
-		if res != nil { msg = res.Message }
+		msg := "Error al unirse al servidor"
+		if res != nil {
+			msg = res.Message
+		}
 		errMsg, _ := json.Marshal(map[string]string{"type": "error", "message": msg})
-		ws.WriteMessage(websocket.TextMessage, errMsg)
+		_ = ws.WriteMessage(websocket.TextMessage, errMsg)
 		return
 	}
 
-	// Éxito
+	// Confirmación al UI
 	initMsg, _ := json.Marshal(map[string]string{
 		"type": "init",
 		"id":   app.ClientID,
 		"name": name,
 		"room": room,
 	})
-	ws.WriteMessage(websocket.TextMessage, initMsg)
+	_ = ws.WriteMessage(websocket.TextMessage, initMsg)
 
-	// Iniciar suscripción a preguntas
+	// Suscribir a preguntas
 	go app.subscribeToQuestions(ws, room)
 
 	// Heartbeat Loop
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 		for range ticker.C {
-			_, err := app.GRPCClient.Heartbeat(context.Background(), &pb.HeartbeatRequest{
+			if _, err := app.GRPCClient.Heartbeat(context.Background(), &pb.HeartbeatRequest{
 				ClientId: app.ClientID,
 				RoomCode: room,
-			})
-			if err != nil { return }
+			}); err != nil {
+				return
+			}
 		}
 	}()
 }
@@ -258,10 +263,14 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 			break
 		}
 
-		options := make([]map[string]string, 0)
+		options := make([]map[string]string, 0, len(q.Options))
 		for _, o := range q.Options {
 			options = append(options, map[string]string{"id": o.Id, "text": o.Text})
 		}
+
+		// duration: usa el campo created_at como referencia para calcular tiempo restante
+		// o un default de 30 segundos. Si el servidor pasa duración en TxT del proto, usarla.
+		duration := 30
 
 		msg, _ := json.Marshal(map[string]interface{}{
 			"type":          "question_incoming",
@@ -269,8 +278,9 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 			"text":          q.Text,
 			"question_type": q.Type.String(),
 			"options":       options,
+			"duration":      duration,
 		})
-		ws.WriteMessage(websocket.TextMessage, msg)
+		_ = ws.WriteMessage(websocket.TextMessage, msg)
 	}
 }
 
@@ -279,19 +289,17 @@ func main() {
 		ClientID: getClientID(),
 	}
 
-	// Servidor web local
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(indexHTML)
+		_, _ = w.Write(indexHTML)
 	})
-	
+
 	http.HandleFunc("/ws-local", app.handleLocalWS)
 
 	go func() {
 		fmt.Println("Interfaz de Estudiante en http://localhost:8080")
-		// Abrir navegador automáticamente tras iniciar el servidor
 		go func() {
-			time.Sleep(500 * time.Millisecond) // Dar tiempo al servidor para iniciar
+			time.Sleep(600 * time.Millisecond)
 			openBrowser("http://localhost:8080")
 		}()
 		if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -302,5 +310,5 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
-	fmt.Println("Cerrando cliente...")
+	fmt.Println("Cerrando cliente SIA...")
 }

@@ -2,11 +2,15 @@
 bin/*.exe
 bin/*.test
 bin/*.prof
+bin/*.txt
+dist/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+*.iss
 
 # Archivos de Datos y Sesión locales
 bin/client_id.txt
