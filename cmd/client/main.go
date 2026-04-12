@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
-	"sia/pkg/models"
 	"sia/pkg/utils"
 	pb "sia/proto"
 	"strings"
@@ -54,7 +53,10 @@ func openBrowser(url string) {
 func getClientID() string {
 	data, err := os.ReadFile(ClientIDFile)
 	if err == nil {
-		return strings.TrimSpace(string(data))
+		id := strings.TrimSpace(string(data))
+		if id != "" {
+			return id
+		}
 	}
 	id := uuid.New().String()
 	_ = os.WriteFile(ClientIDFile, []byte(id), 0644)
@@ -64,11 +66,10 @@ func getClientID() string {
 type ClientApp struct {
 	ClientID       string
 	RoomCode       string
-	ServerAddr     string     // gRPC Address (e.g. 192.168.1.5:50051)
-	ServerHTTPAddr string     // Admin API Address (e.g. 192.168.1.5:8081)
+	ServerAddr     string
 	GRPCClient     pb.SIAServiceClient
-	LastAnswer     string     // Última opción enviada
-	LastQuestionID string     // ID de la pregunta respondida
+	LastAnswer     string
+	LastQuestionID string
 }
 
 func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error {
@@ -92,8 +93,7 @@ func (c *ClientApp) DiscoverServer(ctx context.Context, targetRoom string) error
 					}
 					if addr != "" {
 						c.ServerAddr = fmt.Sprintf("%s:%d", addr, entry.Port)
-						c.ServerHTTPAddr = fmt.Sprintf("%s:8081", addr) // Puerto fijo del panel admin
-						fmt.Printf("Servidor encontrado en: %s (HTTP: %s)\n", c.ServerAddr, c.ServerHTTPAddr)
+						fmt.Printf("Servidor encontrado en: %s\n", c.ServerAddr)
 						select {
 						case found <- true:
 						default:
@@ -153,7 +153,6 @@ func (app *ClientApp) handleLocalWS(w http.ResponseWriter, r *http.Request) {
 			questionID, _ := data["question_id"].(string)
 			answer, _ := data["answer"].(string)
 
-			// Recordar para el feedback posterior
 			app.LastQuestionID = questionID
 			app.LastAnswer = answer
 
@@ -238,11 +237,8 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	})
 	_ = ws.WriteMessage(websocket.TextMessage, initMsg)
 
-	// Suscribir a preguntas
+	// Suscribir a preguntas (maneja tanto preguntas nuevas como señales de cierre)
 	go app.subscribeToQuestions(ws, room)
-
-	// Polling para detectar cierre y enviar feedback
-	go app.pollQuestionClose(ws, room)
 
 	// Heartbeat Loop
 	go func() {
@@ -259,6 +255,10 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	}()
 }
 
+// subscribeToQuestions escucha el stream gRPC.
+// Procesa dos tipos de mensajes:
+//  1. Pregunta nueva (question_id != "__CLOSED__") → mostrar en UI
+//  2. Señal de cierre (question_id == "__CLOSED__") → enviar resultado con retroalimentación
 func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 	stream, err := app.GRPCClient.SubscribeToQuestions(context.Background(), &pb.SubscribeRequest{
 		ClientId: app.ClientID,
@@ -276,13 +276,47 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 			break
 		}
 
+		// ── Señal de CIERRE ──────────────────────────────────────────────
+		// El servidor envía question_id="__CLOSED__", Text=<id_original>,
+		// correct_option=<opción correcta o "">
+		if q.QuestionId == "__CLOSED__" {
+			originalQuestionID := q.Text // el servidor pone el ID real aquí
+			correctOption := q.CorrectOption
+
+			// Determinar la respuesta del estudiante para esta pregunta
+			studentAnswer := ""
+			if app.LastQuestionID == originalQuestionID {
+				studentAnswer = app.LastAnswer
+			}
+
+			isCorrect := false
+			noAnswer := studentAnswer == ""
+
+			if correctOption != "" && !noAnswer {
+				isCorrect = strings.EqualFold(studentAnswer, correctOption)
+			}
+
+			msg, _ := json.Marshal(map[string]interface{}{
+				"type":           "question_result",
+				"correct_option": correctOption,
+				"student_answer": studentAnswer,
+				"is_correct":     isCorrect,
+				"no_answer":      noAnswer,
+			})
+			_ = ws.WriteMessage(websocket.TextMessage, msg)
+
+			// Limpiar estado de la pregunta actual
+			app.LastAnswer = ""
+			app.LastQuestionID = ""
+			continue
+		}
+
+		// ── Pregunta nueva ───────────────────────────────────────────────
 		options := make([]map[string]string, 0, len(q.Options))
 		for _, o := range q.Options {
 			options = append(options, map[string]string{"id": o.Id, "text": o.Text})
 		}
 
-		// duration: usa el campo created_at como referencia para calcular tiempo restante
-		// o un default de 30 segundos. Si el servidor pasa duración en TxT del proto, usarla.
 		duration := 30
 
 		msg, _ := json.Marshal(map[string]interface{}{
@@ -295,73 +329,6 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 		})
 		_ = ws.WriteMessage(websocket.TextMessage, msg)
 	}
-}
-
-// pollQuestionClose monitorea el estado de la pregunta activa para detectar el cierre.
-func (app *ClientApp) pollQuestionClose(ws *websocket.Conn, room string) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	wasOpen := false
-
-	for range ticker.C {
-		if app.ServerHTTPAddr == "" {
-			continue
-		}
-
-		client := &http.Client{Timeout: 800 * time.Millisecond}
-		req, _ := http.NewRequest("GET", "http://"+app.ServerHTTPAddr+"/api/question/active", nil)
-		req.Header.Set("X-Client-ID", app.ClientID)
-		resp, err := client.Do(req)
-		if err != nil {
-			continue
-		}
-
-		var q models.ActiveQuestion
-		_ = json.NewDecoder(resp.Body).Decode(&q)
-		resp.Body.Close()
-
-		if q.QuestionID == "" {
-			wasOpen = false
-			continue
-		}
-
-		if q.Open {
-			wasOpen = true
-			continue
-		}
-
-		// La pregunta existía abierta y ahora está cerrada
-		if wasOpen && !q.Open {
-			wasOpen = false
-			app.sendQuestionResult(ws, q.CorrectOption, q.QuestionID)
-		}
-	}
-}
-
-// sendQuestionResult calcula y envía el feedback individual al navegador.
-func (app *ClientApp) sendQuestionResult(ws *websocket.Conn, correctOption, questionID string) {
-	studentAnswer := ""
-	if app.LastQuestionID == questionID {
-		studentAnswer = app.LastAnswer
-	}
-
-	isCorrect := false
-	if correctOption != "" && studentAnswer != "" {
-		isCorrect = strings.EqualFold(studentAnswer, correctOption)
-	}
-
-	msg, _ := json.Marshal(map[string]interface{}{
-		"type":           "question_result",
-		"correct_option": correctOption,
-		"student_answer": studentAnswer,
-		"is_correct":     isCorrect,
-		"no_answer":      studentAnswer == "",
-	})
-	_ = ws.WriteMessage(websocket.TextMessage, msg)
-
-	// Resetear para la siguiente
-	app.LastAnswer = ""
-	app.LastQuestionID = ""
 }
 
 func main() {

@@ -9,8 +9,7 @@ import (
 	pb "sia/proto"
 	"sync"
 	"time"
-	)
-
+)
 
 // SIAServer implementa el servicio gRPC SIAService.
 type SIAServer struct {
@@ -18,7 +17,7 @@ type SIAServer struct {
 	Manager         *classroom.Manager
 	Hub             *Hub
 	rateLimit       sync.Map // Map[string][]time.Time para ClientID -> Timestamps
-	questionStreams sync.Map // Map[string]pb.SIAService_SubscribeToQuestionsServer
+	questionStreams  sync.Map // Map[string]pb.SIAService_SubscribeToQuestionsServer
 }
 
 // BroadcastQuestion envía una pregunta a todos los estudiantes suscritos.
@@ -58,7 +57,7 @@ func (s *SIAServer) BroadcastQuestion(ctx context.Context, req *pb.BroadcastQues
 		Text:          req.Question.Text,
 		Type:          req.Question.Type.String(),
 		Options:       options,
-		CorrectOption: req.Question.CorrectOption, // Almacenar en el Manager
+		CorrectOption: req.Question.CorrectOption,
 		CreatedAt:     time.Unix(req.Question.CreatedAt, 0),
 		Open:          true,
 		Answers:       make(map[string]*models.Answer),
@@ -77,7 +76,7 @@ func (s *SIAServer) BroadcastQuestion(ctx context.Context, req *pb.BroadcastQues
 	// Broadcast vía gRPC streams a Estudiantes (SIN correct_option)
 	notified := 0
 	studentQuestion := *req.Question
-	studentQuestion.CorrectOption = "" // Omitir deliberadamente
+	studentQuestion.CorrectOption = "" // No revelar la respuesta correcta al estudiante
 
 	s.questionStreams.Range(func(key, value interface{}) bool {
 		stream := value.(pb.SIAService_SubscribeToQuestionsServer)
@@ -104,7 +103,6 @@ func (s *SIAServer) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerReques
 		return &pb.SubmitAnswerResponse{Accepted: false, Message: "Firma inválida"}, nil
 	}
 
-	// Obtener nombre del estudiante
 	studentName := s.Manager.GetStudentName(req.ClientId)
 
 	if err := s.Manager.SubmitAnswer(req.QuestionId, req.ClientId, studentName, req.Answer); err != nil {
@@ -124,19 +122,39 @@ func (s *SIAServer) SubmitAnswer(ctx context.Context, req *pb.SubmitAnswerReques
 	return &pb.SubmitAnswerResponse{Accepted: true, Message: "Respuesta recibida"}, nil
 }
 
-// CloseQuestion cierra una pregunta y notifica a los administradores.
+// CloseQuestion cierra una pregunta, notifica a admins y envía el resultado a estudiantes
+// mediante una señal especial en el stream gRPC.
 func (s *SIAServer) CloseQuestion(ctx context.Context, req *pb.CloseQuestionRequest) (*pb.CloseQuestionResponse, error) {
 	total, correct, counts, err := s.Manager.CloseQuestion(req.QuestionId)
 	if err != nil {
 		return &pb.CloseQuestionResponse{Success: false}, err
 	}
 
+	// Notificar al panel de Admin
 	s.Hub.Broadcast(map[string]interface{}{
 		"type":           "question_closed",
 		"question_id":    req.QuestionId,
 		"total_answers":  int32(total),
 		"correct_option": correct,
 		"counts":         counts,
+	})
+
+	// --- NUEVO: Notificar a estudiantes vía stream gRPC ---
+	// Enviamos un mensaje especial con question_id = "__CLOSED__" y correct_option.
+	// El cliente Go lo detecta y reenvía el resultado a la UI del navegador.
+	closedSignal := &pb.Question{
+		QuestionId:    "__CLOSED__",
+		RoomCode:      req.RoomCode,
+		Text:          req.QuestionId, // Transportar el ID original en el campo Text
+		CorrectOption: correct,
+	}
+
+	s.questionStreams.Range(func(key, value interface{}) bool {
+		stream := value.(pb.SIAService_SubscribeToQuestionsServer)
+		if err := stream.Send(closedSignal); err != nil {
+			s.questionStreams.Delete(key)
+		}
+		return true
 	})
 
 	return &pb.CloseQuestionResponse{
@@ -152,7 +170,6 @@ func (s *SIAServer) SubscribeToQuestions(req *pb.SubscribeRequest, stream pb.SIA
 	s.questionStreams.Store(req.ClientId, stream)
 	defer s.questionStreams.Delete(req.ClientId)
 
-	// Mantener el stream abierto hasta que el cliente se desconecte o el contexto se cancele
 	<-stream.Context().Done()
 	return stream.Context().Err()
 }
@@ -163,7 +180,6 @@ func (s *SIAServer) checkRateLimit(clientID string) bool {
 	val, _ := s.rateLimit.LoadOrStore(clientID, []time.Time{})
 	times := val.([]time.Time)
 
-	// Filtrar tiempos antiguos (> 1 seg)
 	var newTimes []time.Time
 	for _, t := range times {
 		if now.Sub(t) < time.Second {
@@ -186,7 +202,6 @@ func (s *SIAServer) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResp
 		return &pb.JoinResponse{Success: false, Message: "Rate limit excedido (50 msg/s)"}, nil
 	}
 
-	// Verificar HMAC... (resto igual)
 	message := fmt.Sprintf("%s%s%s", req.ClientId, req.StudentName, req.LocalIp)
 	if !utils.VerifyHMAC(message, s.Manager.RoomCode, req.Signature) {
 		return &pb.JoinResponse{Success: false, Message: "Firma HMAC inválida."}, nil
@@ -200,12 +215,10 @@ func (s *SIAServer) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResp
 		Status:      "connected",
 	}
 
-	err := s.Manager.JoinStudent(student)
-	if err != nil {
+	if err := s.Manager.JoinStudent(student); err != nil {
 		return &pb.JoinResponse{Success: false, Message: fmt.Sprintf("Error: %v", err)}, nil
 	}
 
-	// Notificar al Admin UI
 	s.Hub.Broadcast(student)
 
 	return &pb.JoinResponse{Success: true, Message: "Unión exitosa."}, nil
@@ -219,8 +232,8 @@ func (s *SIAServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*p
 	err := s.Manager.Heartbeat(req.ClientId)
 	if err == nil {
 		s.Hub.Broadcast(map[string]interface{}{
-			"client_id": req.ClientId, 
-			"status":    "connected", 
+			"client_id": req.ClientId,
+			"status":    "connected",
 			"event":     "heartbeat",
 			"last_seen": time.Now().Format(time.RFC3339),
 		})
@@ -233,15 +246,15 @@ func (s *SIAServer) ReportSecurityEvent(ctx context.Context, req *pb.SecurityEve
 	if !s.checkRateLimit(req.ClientId) {
 		return &pb.SecurityEventResponse{Received: false}, nil
 	}
-	fmt.Printf("EVENTO DE SEGURIDAD [%s]: %s para el cliente %s\n", 
+	fmt.Printf("EVENTO DE SEGURIDAD [%s]: %s para el cliente %s\n",
 		time.Unix(req.Timestamp, 0).Format(time.RFC822), req.EventType, req.ClientId)
-	
+
 	s.Hub.Broadcast(map[string]interface{}{
-		"client_id":  req.ClientId,
-		"event":      "security",
-		"type":       req.EventType,
-		"timestamp":  req.Timestamp,
-		"last_seen":  time.Now().Format(time.RFC3339),
+		"client_id": req.ClientId,
+		"event":     "security",
+		"type":      req.EventType,
+		"timestamp": req.Timestamp,
+		"last_seen": time.Now().Format(time.RFC3339),
 	})
 	return &pb.SecurityEventResponse{Received: true}, nil
 }

@@ -10,12 +10,17 @@ import (
 
 const GracePeriod = 2 * time.Minute
 
+// closedQuestionTTL: tiempo que una pregunta cerrada sigue visible en GetActiveQuestion
+// para que el polling del cliente pueda detectar el cierre y mostrar el resultado.
+const closedQuestionTTL = 15 * time.Second
+
 // Manager gestiona las salas y el estado de los estudiantes.
 type Manager struct {
 	mu              sync.RWMutex
 	RoomCode        string
 	Students        map[string]*models.Student
 	ActiveQuestion  *models.ActiveQuestion
+	closedAt        time.Time // momento en que se cerró la pregunta activa
 	QuestionHistory map[string]*models.ActiveQuestion
 }
 
@@ -39,6 +44,7 @@ func (m *Manager) OpenQuestion(q *models.ActiveQuestion) error {
 
 	m.ActiveQuestion = q
 	m.ActiveQuestion.Open = true
+	m.closedAt = time.Time{} // reset
 	if m.ActiveQuestion.Answers == nil {
 		m.ActiveQuestion.Answers = make(map[string]*models.Answer)
 	}
@@ -77,29 +83,50 @@ func (m *Manager) CloseQuestion(questionID string) (total int, correct string, c
 	}
 
 	m.ActiveQuestion.Open = false
+	m.closedAt = time.Now() // registrar momento de cierre para el TTL
 	total = len(m.ActiveQuestion.Answers)
 	correct = m.ActiveQuestion.CorrectOption
 	counts = make(map[string]int)
 
-	// Calcular conteo de votos por opción
 	for _, ans := range m.ActiveQuestion.Answers {
 		counts[ans.Answer]++
 	}
 
 	m.QuestionHistory[questionID] = m.ActiveQuestion
-	// Opcional: limitar historial a 50
+
 	if len(m.QuestionHistory) > 50 {
-		// Implementar limpieza si es necesario
+		// limpiar la entrada más antigua si fuera necesario
 	}
 
 	return total, correct, counts, nil
 }
 
-// GetActiveQuestion retorna la pregunta activa actual (nil si no hay).
+// GetActiveQuestion retorna la pregunta activa actual.
+// Si la pregunta ya se cerró pero aún está dentro del TTL, la retorna igual
+// para que el cliente de polling pueda detectar el cierre y mostrar retroalimentación.
+// Pasado el TTL, retorna nil y limpia la referencia.
 func (m *Manager) GetActiveQuestion() *models.ActiveQuestion {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.ActiveQuestion
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ActiveQuestion == nil {
+		return nil
+	}
+
+	// Pregunta abierta → retornar normalmente
+	if m.ActiveQuestion.Open {
+		return m.ActiveQuestion
+	}
+
+	// Pregunta cerrada dentro del TTL → retornar para que el cliente detecte el cierre
+	if !m.closedAt.IsZero() && time.Since(m.closedAt) < closedQuestionTTL {
+		return m.ActiveQuestion
+	}
+
+	// TTL expirado → limpiar y retornar nil
+	m.ActiveQuestion = nil
+	m.closedAt = time.Time{}
+	return nil
 }
 
 // GetResults retorna todas las respuestas de una pregunta ya cerrada (del historial).
@@ -129,7 +156,6 @@ func (m *Manager) JoinStudent(student *models.Student) error {
 
 	existing, ok := m.Students[student.ClientID]
 	if ok {
-		// Reconexión
 		existing.Status = "connected"
 		existing.LastSeen = time.Now()
 		existing.LocalIP = student.LocalIP
@@ -137,7 +163,6 @@ func (m *Manager) JoinStudent(student *models.Student) error {
 		return nil
 	}
 
-	// Nuevo ingreso
 	student.Status = "connected"
 	student.LastSeen = time.Now()
 	m.Students[student.ClientID] = student

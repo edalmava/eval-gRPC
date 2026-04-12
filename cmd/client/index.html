@@ -157,9 +157,7 @@
             font-weight: 800; font-size: 1.1rem; color: #fff;
         }
 
-        .q-text-wrap {
-            flex: 1;
-        }
+        .q-text-wrap { flex: 1; }
         .q-text {
             color: #fff; font-size: 1rem; font-weight: 600; line-height: 1.4;
         }
@@ -187,7 +185,7 @@
         .opt-btn:active { transform: scale(0.97); }
         .opt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .opt-btn.selected { outline: 4px solid rgba(255,255,255,0.9); }
-        .opt-btn.correct { background: #2e7d32 !important; }
+        .opt-btn.correct { background: #2e7d32 !important; opacity: 1 !important; }
         .opt-btn.wrong { background: #555 !important; opacity: 0.6; }
 
         .opt-A { background: #e53935; }
@@ -218,7 +216,7 @@
         .btn-send:active { transform: scale(0.98); }
         .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* Feedback después de responder */
+        /* Feedback intermedio (respuesta enviada / esperando) */
         .feedback-wrap {
             text-align: center; padding: 24px;
             display: none; flex-direction: column; align-items: center; gap: 12px;
@@ -235,7 +233,7 @@
             display: none;
         }
 
-        /* --- FEEDBACK SCREEN --- */
+        /* --- PANTALLA DE RESULTADO FINAL --- */
         .feedback-screen {
             position: fixed; inset: 0;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -264,6 +262,18 @@
             70% { transform: scale(1.1); }
             100% { transform: scale(1); }
         }
+
+        /* Spinner de espera de resultado */
+        .waiting-result {
+            display: flex; flex-direction: column; align-items: center; gap: 16px;
+            color: rgba(255,255,255,0.8);
+        }
+        .spinner {
+            width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -320,36 +330,40 @@
         </div>
 
         <div class="q-body">
-            <!-- Se llena dinámicamente -->
             <div id="qAnswerArea"></div>
             <div id="qFeedbackArea"></div>
         </div>
-        <div class="q-closed-bar" id="qClosedBar">✅ Pregunta cerrada por el profesor</div>
+        <div class="q-closed-bar" id="qClosedBar">✅ Pregunta cerrada — calculando resultados...</div>
     </div>
 
 <script>
 const OPT_ICONS = { A: '🔴', B: '🔵', C: '🟢', D: '🟠' };
 const OPT_CLASSES = { A: 'opt-A', B: 'opt-B', C: 'opt-C', D: 'opt-D' };
 
-let ws, currentQ = null, timerInterval = null, answered = false, feedbackShown = false;
+let ws, currentQ = null, timerInterval = null, answered = false;
 let myName = '', myRoom = '', myId = '';
 
-// === WebSocket ===
+// ──────────────────────────────────────────────────────────────
+// WebSocket local (cliente Go ↔ navegador)
+// ──────────────────────────────────────────────────────────────
 function connectWS() {
     ws = new WebSocket('ws://' + location.host + '/ws-local');
-    ws.onopen = () => setStatus(true);
+    ws.onopen  = () => setStatus(true);
     ws.onclose = () => {
         setStatus(false);
         setTimeout(connectWS, 2000);
     };
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
-        if (d.type === 'init') onInit(d);
-        else if (d.type === 'error') showError(d.message);
-        else if (d.type === 'question_incoming') showQuestion(d);
-        else if (d.type === 'answer_result') onAnswerResult(d.accepted);
-        else if (d.type === 'question_closed') onQuestionClosed();
-        else if (d.type === 'question_result') onQuestionResult(d);
+        switch (d.type) {
+            case 'init':            onInit(d);            break;
+            case 'error':           showError(d.message); break;
+            case 'question_incoming': showQuestion(d);    break;
+            case 'answer_result':   onAnswerResult(d.accepted); break;
+            // question_result: retroalimentación final enviada por el servidor
+            // al cerrar la pregunta (por profesor o por timer del admin)
+            case 'question_result': onQuestionResult(d); break;
+        }
     };
 }
 
@@ -362,7 +376,9 @@ function setStatus(ok) {
     txt.textContent = ok ? 'Conectado — esperando pregunta...' : 'Reconectando...';
 }
 
-// === Login ===
+// ──────────────────────────────────────────────────────────────
+// Login
+// ──────────────────────────────────────────────────────────────
 function joinRoom() {
     const room = document.getElementById('inputRoom').value.trim().toUpperCase();
     const name = document.getElementById('inputName').value.trim();
@@ -384,30 +400,31 @@ function onInit(d) {
     switchScreen('lobbyScreen');
 }
 
-// === Pregunta ===
+// ──────────────────────────────────────────────────────────────
+// Pregunta
+// ──────────────────────────────────────────────────────────────
 function showQuestion(q) {
     currentQ = q;
-    answered = false;
-    feedbackShown = false;
+    answered  = false;
     document.getElementById('qText').textContent = q.text;
     document.getElementById('qFeedbackArea').innerHTML = '';
     document.getElementById('qClosedBar').style.display = 'none';
     document.getElementById('qAnswerArea').style.display = '';
 
-    const area = document.getElementById('qAnswerArea');
+    const area   = document.getElementById('qAnswerArea');
     const isMulti = (q.question_type === 'MULTIPLE_CHOICE') && q.options && q.options.length > 0;
 
     if (isMulti) {
         area.innerHTML = `<div class="opt-grid" id="optGrid"></div>`;
         const grid = document.getElementById('optGrid');
         q.options.forEach(opt => {
-            const id = opt.id || opt.ID;
+            const id   = opt.id   || opt.ID;
             const text = opt.text || opt.Text;
-            const btn = document.createElement('button');
+            const btn  = document.createElement('button');
             btn.className = 'opt-btn ' + (OPT_CLASSES[id] || 'opt-A');
-            btn.id = 'opt-btn-' + id;
+            btn.id        = 'opt-btn-' + id;
             btn.innerHTML = `<span class="opt-icon">${OPT_ICONS[id] || '▶'}</span><span class="opt-label">${id}: ${text}</span>`;
-            btn.onclick = () => selectOption(id);
+            btn.onclick   = () => selectOption(id);
             grid.appendChild(btn);
         });
     } else {
@@ -415,27 +432,20 @@ function showQuestion(q) {
             <div class="free-text-wrap">
                 <textarea id="freeText" placeholder="Escribe tu respuesta..." rows="4"></textarea>
                 <button class="btn-send" id="btnSend" onclick="submitFree()">Enviar respuesta ↗</button>
-            </div>
-        `;
+            </div>`;
     }
 
-    const duration = q.duration || 30;
-    startTimer(duration);
+    startTimer(q.duration || 30);
     switchScreen('questionScreen');
 }
 
 function selectOption(id) {
     if (answered) return;
     document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
-    const btn = document.getElementById('opt-btn-' + id);
-    if (btn) btn.classList.add('selected');
+    document.getElementById('opt-btn-' + id)?.classList.add('selected');
     answered = true;
     disableOptions();
-    ws.send(JSON.stringify({
-        type: 'submit_answer',
-        question_id: currentQ.question_id,
-        answer: id
-    }));
+    ws.send(JSON.stringify({ type: 'submit_answer', question_id: currentQ.question_id, answer: id }));
 }
 
 function submitFree() {
@@ -443,74 +453,117 @@ function submitFree() {
     const text = document.getElementById('freeText').value.trim();
     if (!text) { document.getElementById('freeText').focus(); return; }
     answered = true;
-    document.getElementById('btnSend').disabled = true;
+    document.getElementById('btnSend').disabled  = true;
     document.getElementById('freeText').disabled = true;
-    ws.send(JSON.stringify({
-        type: 'submit_answer',
-        question_id: currentQ.question_id,
-        answer: text
-    }));
+    ws.send(JSON.stringify({ type: 'submit_answer', question_id: currentQ.question_id, answer: text }));
 }
 
 function disableOptions() {
     document.querySelectorAll('.opt-btn').forEach(b => b.disabled = true);
 }
 
+// El servidor confirmó que recibió la respuesta
 function onAnswerResult(accepted) {
     clearTimer();
     document.getElementById('qAnswerArea').style.display = 'none';
-    const area = document.getElementById('qFeedbackArea');
-    area.innerHTML = `
+    document.getElementById('qFeedbackArea').innerHTML = `
         <div class="feedback-wrap show">
             <div class="feedback-icon">${accepted ? '✅' : '❌'}</div>
             <div class="feedback-msg">${accepted ? '¡Respuesta enviada!' : 'No se pudo enviar'}</div>
             <div class="feedback-sub">Esperando al profesor...</div>
-        </div>
-    `;
+        </div>`;
 }
 
-function onQuestionClosed() {
+// ──────────────────────────────────────────────────────────────
+// Timer del estudiante
+// Cuando llega a 0, el estudiante no puede enviar más respuestas
+// pero NO mostramos el resultado todavía — esperamos el mensaje
+// question_result del servidor (que llegará cuando el profesor
+// o el timer del admin cierren la pregunta).
+// ──────────────────────────────────────────────────────────────
+function startTimer(seconds) {
+    const circle = document.getElementById('qTimerCircle');
+    const num    = document.getElementById('qTimerNum');
+    const circum = 2 * Math.PI * 22; // ≈138
+    circle.style.strokeDasharray  = circum;
+    circle.style.strokeDashoffset = 0;
+    circle.style.stroke = '#fff';
+    num.style.color     = '#fff';
+    num.textContent     = seconds;
+    let rem = seconds;
     clearTimer();
-    if (feedbackShown) return;
-    document.getElementById('qClosedBar').style.display = 'block';
-    document.getElementById('qAnswerArea').style.display = 'none';
-    if (!answered) {
-        const area = document.getElementById('qFeedbackArea');
-        area.innerHTML = `
-            <div class="feedback-wrap show">
-                <div class="feedback-icon">⏱</div>
-                <div class="feedback-msg">Tiempo agotado</div>
-                <div class="feedback-sub">No respondiste a tiempo</div>
-            </div>
-        `;
-    }
+    timerInterval = setInterval(() => {
+        rem--;
+        num.textContent = rem;
+        circle.style.strokeDashoffset = circum * (1 - rem / seconds);
+        if (rem <= 5) {
+            circle.style.stroke = '#ef5350';
+            num.style.color     = '#ef5350';
+        }
+        if (rem <= 0) {
+            clearTimer();
+            onTimerExpired();
+        }
+    }, 1000);
 }
 
+function clearTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+// Timer del navegador llegó a 0 → bloquear respuestas y esperar question_result
+function onTimerExpired() {
+    disableOptions();
+    const btnSend = document.getElementById('btnSend');
+    if (btnSend) btnSend.disabled = true;
+    const ft = document.getElementById('freeText');
+    if (ft) ft.disabled = true;
+
+    // Solo mostrar "esperando" si aún no respondimos ni ya hay feedback
+    if (!answered) {
+        document.getElementById('qAnswerArea').style.display = 'none';
+        document.getElementById('qClosedBar').style.display = 'block';
+        document.getElementById('qFeedbackArea').innerHTML = `
+            <div class="feedback-wrap show">
+                <div class="waiting-result">
+                    <div class="spinner"></div>
+                    <div style="color:#fff;font-weight:700">Tiempo agotado</div>
+                    <div style="color:rgba(255,255,255,0.6);font-size:0.9rem">Esperando resultado del profesor...</div>
+                </div>
+            </div>`;
+    }
+    // Si ya respondimos, el mensaje "esperando al profesor" ya está visible → no hacer nada más
+}
+
+// ──────────────────────────────────────────────────────────────
+// Resultado final (enviado por el servidor al cerrar la pregunta)
+// ──────────────────────────────────────────────────────────────
 function onQuestionResult(d) {
     clearTimer();
-    feedbackShown = true;
     const area = document.getElementById('qFeedbackArea');
-    document.getElementById('qAnswerArea').style.display = 'none';
-    document.getElementById('qClosedBar').style.display = 'none';
-    
+    document.getElementById('qAnswerArea').style.display  = 'none';
+    document.getElementById('qClosedBar').style.display   = 'none';
+
     let cls = 'fb-timeout', icon = '⏱', title = 'Pregunta cerrada', text = '';
-    
+
     if (d.no_answer) {
         title = 'Tiempo agotado';
-        text = d.correct_option ? 'La correcta era:' : 'No respondiste a tiempo';
+        text  = d.correct_option ? 'La respuesta correcta era:' : 'No respondiste a tiempo';
     } else if (d.is_correct) {
-        cls = 'fb-correct'; icon = '✅'; title = '¡Correcto!';
-        text = 'Respondiste: ' + d.student_answer;
+        cls   = 'fb-correct'; icon = '✅'; title = '¡Correcto!';
+        text  = 'Respondiste: ' + d.student_answer;
     } else {
-        cls = 'fb-wrong'; icon = '❌'; title = '¡Incorrecto!';
-        text = 'La correcta era:';
+        cls   = 'fb-wrong'; icon = '❌'; title = '¡Incorrecto!';
+        text  = d.correct_option ? 'La respuesta correcta era:' : 'Tu respuesta: ' + d.student_answer;
     }
 
     let badgeHtml = '';
     if (d.correct_option && (d.no_answer || !d.is_correct)) {
-        badgeHtml = `<div class="fb-badge anim-pop ${OPT_CLASSES[d.correct_option]}">${d.correct_option}</div>`;
-    } else if (d.is_correct) {
-        badgeHtml = `<div class="fb-badge anim-pop ${OPT_CLASSES[d.student_answer]}">${d.student_answer}</div>`;
+        const bc = OPT_CLASSES[d.correct_option] || '';
+        badgeHtml = `<div class="fb-badge anim-pop ${bc}">${d.correct_option}</div>`;
+    } else if (d.is_correct && d.student_answer) {
+        const bc = OPT_CLASSES[d.student_answer] || '';
+        badgeHtml = `<div class="fb-badge anim-pop ${bc}">${d.student_answer}</div>`;
     }
 
     area.innerHTML = `
@@ -519,43 +572,16 @@ function onQuestionResult(d) {
             <div class="fb-title">${title}</div>
             <div class="fb-text">${text}</div>
             ${badgeHtml}
-        </div>
-    `;
+        </div>`;
 
     setTimeout(() => {
         switchScreen('lobbyScreen');
-        feedbackShown = false;
     }, 3500);
 }
 
-// === Timer ===
-function startTimer(seconds) {
-    const circle = document.getElementById('qTimerCircle');
-    const num = document.getElementById('qTimerNum');
-    const circum = 2 * Math.PI * 22; // 138.23
-    circle.style.strokeDasharray = circum;
-    circle.style.strokeDashoffset = 0;
-    circle.style.stroke = '#fff';
-    num.textContent = seconds;
-    let rem = seconds;
-    clearTimer();
-    timerInterval = setInterval(() => {
-        rem--;
-        num.textContent = rem;
-        const offset = circum * (1 - rem / seconds);
-        circle.style.strokeDashoffset = offset;
-        if (rem <= 5) { circle.style.stroke = '#ef5350'; num.style.color = '#ef5350'; }
-        if (rem <= 0) {
-            clearTimer();
-            if (!answered) onQuestionClosed();
-        }
-    }, 1000);
-}
-function clearTimer() {
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-}
-
-// === Navegación ===
+// ──────────────────────────────────────────────────────────────
+// Navegación
+// ──────────────────────────────────────────────────────────────
 function switchScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const el = document.getElementById(id);
@@ -569,7 +595,9 @@ function switchScreen(id) {
     }
 }
 
-// === Focus ===
+// ──────────────────────────────────────────────────────────────
+// Detección de foco
+// ──────────────────────────────────────────────────────────────
 window.addEventListener('blur', () => {
     if (ws && ws.readyState === WebSocket.OPEN && myRoom) {
         ws.send(JSON.stringify({ type: 'focus_lost', timestamp: Date.now() }));
@@ -582,10 +610,16 @@ window.addEventListener('focus', () => {
     if (fa) fa.style.display = 'none';
 });
 
-// === Inputs enter ===
+// ──────────────────────────────────────────────────────────────
+// Tecla Enter en login
+// ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('inputRoom').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('inputName').focus(); });
-    document.getElementById('inputName').addEventListener('keydown', e => { if (e.key==='Enter') joinRoom(); });
+    document.getElementById('inputRoom').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('inputName').focus();
+    });
+    document.getElementById('inputName').addEventListener('keydown', e => {
+        if (e.key === 'Enter') joinRoom();
+    });
 });
 
 connectWS();
