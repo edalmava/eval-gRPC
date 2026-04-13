@@ -15,14 +15,15 @@ type Student struct {
 
 // ActiveQuestion representa la pregunta actualmente abierta en la sala.
 type ActiveQuestion struct {
-    QuestionID    string            `json:"question_id"`
-    Text          string            `json:"text"`
-    Type          string            `json:"type"` // "text" o "multiple_choice"
-    Options       []QuestionOption  `json:"options,omitempty"`
-    CorrectOption string            `json:"correct_option,omitempty"` // NUEVO
-    CreatedAt     time.Time         `json:"created_at"`
-    Answers       map[string]*Answer `json:"answers"` // key = ClientID
-    Open          bool              `json:"open"`
+    QuestionID      string            `json:"question_id"`
+    Text            string            `json:"text"`
+    Type            string            `json:"type"` // "text" o "multiple_choice"
+    Options         []QuestionOption  `json:"options,omitempty"`
+    CorrectOption   string            `json:"correct_option,omitempty"` // NUEVO
+    DurationSeconds int32             `json:"duration_seconds"`         // NUEVO
+    CreatedAt       time.Time         `json:"created_at"`
+    Answers         map[string]*Answer `json:"answers"` // key = ClientID
+    Open            bool              `json:"open"`
 }
 
 type QuestionOption struct {

@@ -121,16 +121,17 @@ func (x *QuestionOption) GetText() string {
 }
 
 type Question struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	QuestionId    string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
-	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
-	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
-	Type          QuestionType           `protobuf:"varint,4,opt,name=type,proto3,enum=sia.QuestionType" json:"type,omitempty"`
-	Options       []*QuestionOption      `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty"` // vacío si type == TEXT
-	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CorrectOption string                 `protobuf:"bytes,7,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"` // NUEVO: "A", "B", "C" o "D". Vacío si type == TEXT.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	QuestionId      string                 `protobuf:"bytes,1,opt,name=question_id,json=questionId,proto3" json:"question_id,omitempty"`
+	RoomCode        string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`
+	Text            string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	Type            QuestionType           `protobuf:"varint,4,opt,name=type,proto3,enum=sia.QuestionType" json:"type,omitempty"`
+	Options         []*QuestionOption      `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty"` // vacío si type == TEXT
+	CreatedAt       int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CorrectOption   string                 `protobuf:"bytes,7,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"`        // "A", "B", "C" o "D". Vacío si type == TEXT.
+	DurationSeconds int32                  `protobuf:"varint,8,opt,name=duration_seconds,json=durationSeconds,proto3" json:"duration_seconds,omitempty"` // Duración en segundos configurada por el profesor
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Question) Reset() {
@@ -210,6 +211,13 @@ func (x *Question) GetCorrectOption() string {
 		return x.CorrectOption
 	}
 	return ""
+}
+
+func (x *Question) GetDurationSeconds() int32 {
+	if x != nil {
+		return x.DurationSeconds
+	}
+	return 0
 }
 
 type SubmitAnswerRequest struct {
@@ -516,8 +524,8 @@ type CloseQuestionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	TotalAnswers  int32                  `protobuf:"varint,2,opt,name=total_answers,json=totalAnswers,proto3" json:"total_answers,omitempty"`
-	CorrectOption string                 `protobuf:"bytes,3,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"`                                         // NUEVO
-	Counts        map[string]int32       `protobuf:"bytes,4,rep,name=counts,proto3" json:"counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // NUEVO: conteo de votos por opción {"A":5,"B":2,...}
+	CorrectOption string                 `protobuf:"bytes,3,opt,name=correct_option,json=correctOption,proto3" json:"correct_option,omitempty"`
+	Counts        map[string]int32       `protobuf:"bytes,4,rep,name=counts,proto3" json:"counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1043,7 +1051,7 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\x0fproto/sia.proto\x12\x03sia\"4\n" +
 	"\x0eQuestionOption\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\"\xf8\x01\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"\xa3\x02\n" +
 	"\bQuestion\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x1b\n" +
@@ -1053,7 +1061,8 @@ const file_proto_sia_proto_rawDesc = "" +
 	"\aoptions\x18\x05 \x03(\v2\x13.sia.QuestionOptionR\aoptions\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12%\n" +
-	"\x0ecorrect_option\x18\a \x01(\tR\rcorrectOption\"\xc4\x01\n" +
+	"\x0ecorrect_option\x18\a \x01(\tR\rcorrectOption\x12)\n" +
+	"\x10duration_seconds\x18\b \x01(\x05R\x0fdurationSeconds\"\xc4\x01\n" +
 	"\x13SubmitAnswerRequest\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x1b\n" +

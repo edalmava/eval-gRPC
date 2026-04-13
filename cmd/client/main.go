@@ -228,7 +228,6 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 		return
 	}
 
-	// Confirmación al UI
 	initMsg, _ := json.Marshal(map[string]string{
 		"type": "init",
 		"id":   app.ClientID,
@@ -237,10 +236,8 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	})
 	_ = ws.WriteMessage(websocket.TextMessage, initMsg)
 
-	// Suscribir a preguntas (maneja tanto preguntas nuevas como señales de cierre)
 	go app.subscribeToQuestions(ws, room)
 
-	// Heartbeat Loop
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -255,10 +252,6 @@ func (app *ClientApp) processJoin(ws *websocket.Conn, room, name string) {
 	}()
 }
 
-// subscribeToQuestions escucha el stream gRPC.
-// Procesa dos tipos de mensajes:
-//  1. Pregunta nueva (question_id != "__CLOSED__") → mostrar en UI
-//  2. Señal de cierre (question_id == "__CLOSED__") → enviar resultado con retroalimentación
 func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 	stream, err := app.GRPCClient.SubscribeToQuestions(context.Background(), &pb.SubscribeRequest{
 		ClientId: app.ClientID,
@@ -277,13 +270,10 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 		}
 
 		// ── Señal de CIERRE ──────────────────────────────────────────────
-		// El servidor envía question_id="__CLOSED__", Text=<id_original>,
-		// correct_option=<opción correcta o "">
 		if q.QuestionId == "__CLOSED__" {
-			originalQuestionID := q.Text // el servidor pone el ID real aquí
+			originalQuestionID := q.Text
 			correctOption := q.CorrectOption
 
-			// Determinar la respuesta del estudiante para esta pregunta
 			studentAnswer := ""
 			if app.LastQuestionID == originalQuestionID {
 				studentAnswer = app.LastAnswer
@@ -305,7 +295,6 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 			})
 			_ = ws.WriteMessage(websocket.TextMessage, msg)
 
-			// Limpiar estado de la pregunta actual
 			app.LastAnswer = ""
 			app.LastQuestionID = ""
 			continue
@@ -317,7 +306,11 @@ func (app *ClientApp) subscribeToQuestions(ws *websocket.Conn, room string) {
 			options = append(options, map[string]string{"id": o.Id, "text": o.Text})
 		}
 
-		duration := 30
+		// Usar el duration configurado por el profesor; 30 como fallback.
+		duration := int(q.DurationSeconds)
+		if duration <= 0 {
+			duration = 30
+		}
 
 		msg, _ := json.Marshal(map[string]interface{}{
 			"type":          "question_incoming",
