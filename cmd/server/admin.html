@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SIA - Dashboard Administrativo</title>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Lucide Icons (opcional pero recomendado para UI) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js Local -->
+    <script src="/static/chart.umd.js"></script>
+    <!-- Lucide Icons Local -->
+    <script src="/static/lucide.min.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -171,13 +171,32 @@
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             border: 1px solid var(--border);
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
             width: 100%;
+            position: relative;
         }
         .card-table table { width: 100%; border-collapse: collapse; }
-        .card-table th { background: #f8f9fa; padding: 16px; text-align: left; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+        .card-table th { 
+            background: #f8f9fa; 
+            padding: 16px; 
+            text-align: left; 
+            font-size: 0.85rem; 
+            font-weight: 600; 
+            color: var(--text-muted); 
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
         .card-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
         .card-table tr:hover { background: #fdfdfd; }
+
+        /* Custom scrollbar for tables */
+        .card-table::-webkit-scrollbar { width: 8px; height: 8px; }
+        .card-table::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .card-table::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+        .card-table::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
         /* === QUESTION BUILDER MODERNO === */
         .q-form { max-width: 800px; margin: 0 auto; }
@@ -531,7 +550,7 @@
         // === WEB SOCKET ===
         function connect() {
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.hostname}:8081/ws-admin`);
+            ws = new WebSocket(`${protocol}//${location.hostname}:8090/ws-admin`);
             
             ws.onopen = () => updateWsStatus(true);
             ws.onclose = () => {

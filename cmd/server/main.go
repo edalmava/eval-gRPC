@@ -1,7 +1,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -26,6 +26,9 @@ var adminHTML []byte
 
 //go:embed login.html
 var loginHTML []byte
+
+//go:embed static/*
+var staticFiles embed.FS
 
 var sessionToken = "" // Token temporal para la sesión actual
 
@@ -59,6 +62,7 @@ func main() {
 	pb.RegisterSIAServiceServer(grpcServer, siaServer)
 
 	adminMux := http.NewServeMux()
+	adminMux.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 
 	// Middleware de autenticación simple
 	isAuthenticated := func(r *http.Request) bool {
@@ -190,8 +194,8 @@ func main() {
 	})
 
 	go func() {
-		fmt.Println("Panel Administrativo protegido en http://localhost:8081")
-		if err := http.ListenAndServe(":8081", adminMux); err != nil {
+		fmt.Println("Panel Administrativo protegido en http://localhost:8090")
+		if err := http.ListenAndServe(":8090", adminMux); err != nil {
 			log.Fatalf("Fallo de servidor HTTP Admin: %v", err)
 		}
 	}()
