@@ -13,21 +13,28 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+// Client representa una conexión WebSocket de administrador con su propio buffer de mensajes.
+type Client struct {
+	conn *websocket.Conn
+	send chan interface{}
+	hub  *Hub
+}
+
 // Hub gestiona las conexiones WebSocket de los administradores.
 type Hub struct {
-	clients    map[*websocket.Conn]bool
+	clients    map[*Client]bool
 	broadcast  chan interface{}
-	register   chan *websocket.Conn
-	unregister chan *websocket.Conn
+	register   chan *Client
+	unregister chan *Client
 	mu         sync.Mutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[*websocket.Conn]bool),
+		clients:    make(map[*Client]bool),
 		broadcast:  make(chan interface{}),
-		register:   make(chan *websocket.Conn),
-		unregister: make(chan *websocket.Conn),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
 	}
 }
 
@@ -42,18 +49,20 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				client.Close()
+				close(client.send)
 			}
 			h.mu.Unlock()
 		case message := <-h.broadcast:
 			h.mu.Lock()
-			data, _ := json.Marshal(message)
 			for client := range h.clients {
-				err := client.WriteMessage(websocket.TextMessage, data)
-				if err != nil {
-					log.Printf("Error enviando a WS: %v", err)
-					client.Close()
+				select {
+				case client.send <- message:
+				default:
+					// Si el buffer del cliente está lleno, desconectarlo (cliente muy lento)
+					log.Printf("Buffer de cliente lleno, desconectando...")
+					close(client.send)
 					delete(h.clients, client)
+					client.conn.Close()
 				}
 			}
 			h.mu.Unlock()
@@ -61,17 +70,32 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("Error upgrade WS: %v", err)
-		return
+func (c *Client) writePump() {
+	defer func() {
+		c.hub.unregister <- c
+		c.conn.Close()
+	}()
+	for {
+		message, ok := <-c.send
+		if !ok {
+			c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+			return
+		}
+		data, _ := json.Marshal(message)
+		if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return
+		}
 	}
-	h.register <- conn
 }
 
 func (h *Hub) ServeHTTP_Manual(conn *websocket.Conn) {
-	h.register <- conn
+	client := &Client{
+		conn: conn,
+		send: make(chan interface{}, 256), // Buffer de 256 mensajes
+		hub:  h,
+	}
+	h.register <- client
+	go client.writePump()
 }
 
 func (h *Hub) Broadcast(msg interface{}) {

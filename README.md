@@ -4,24 +4,23 @@ SIA es un sistema de evaluación de aula diseñado para funcionar en redes local
 
 ## 🚀 Características Principales
 
-- **Binarios Autónomos:** Gracias a `go:embed`, todos los archivos de interfaz (HTML/CSS/JS) están integrados dentro de los ejecutables. No necesitas archivos externos para correr el sistema.
-- **Descubrimiento Automático (mDNS):** Los clientes encuentran al servidor en la red local automáticamente usando el código de la sala. Cero configuración manual de IPs.
-- **Comunicación de Alto Rendimiento:** Utiliza **gRPC** con Protocol Buffers para una comunicación eficiente y tipada entre estudiantes y el servidor.
-- **Módulo de Preguntas en Clase:** El profesor puede lanzar preguntas (texto o opción múltiple) que aparecen instantáneamente en los dispositivos de los alumnos mediante **gRPC Server Streaming**.
-- **Monitoreo y Estadísticas en Vivo:** Interfaz administrativa que muestra el estado de conexión, alertas de pérdida de foco y gráficos de respuestas en tiempo real.
-- **Seguridad HMAC-SHA256:** Las solicitudes de unión y respuestas están firmadas digitalmente usando el `RoomCode` como clave secreta, evitando suplantaciones.
-- **Resiliencia Extrema:** Periodo de gracia de **2 minutos** para reconexión automática de estudiantes en caso de micro-cortes de red.
-- **Identidad Persistente:** Generación de `ClientID` único por dispositivo almacenado localmente.
-- **Apertura Automática:** El cliente detecta el navegador predeterminado y abre la interfaz de usuario automáticamente al iniciar.
+- **Binarios Autónomos:** Gracias a `go:embed`, todos los archivos de interfaz (HTML/CSS/JS) están integrados dentro de los ejecutables.
+- **Descubrimiento Automático (mDNS):** Los clientes encuentran al servidor en la red local automáticamente usando el código de la sala.
+- **Comunicación de Alto Rendimiento:** Utiliza **gRPC** con Protocol Buffers para una comunicación eficiente.
+- **Exportación Profesional:** Generación de reportes detallados en **Excel (.xlsx)** y CSV con resúmenes de efectividad por estudiante y desglose por pregunta.
+- **Monitoreo y Estadísticas en Vivo:** Interfaz administrativa optimizada (60 FPS) que muestra alertas de seguridad y gráficos de respuestas en tiempo real.
+- **Infraestructura Escalable:** Servidor optimizado con carga de historial bajo demanda (Lazy Loading) y manejo asíncrono de WebSockets para soportar grandes grupos de estudiantes.
+- **Seguridad HMAC-SHA256:** Toda la comunicación crítica está firmada digitalmente para evitar suplantaciones.
+- **Persistencia Robusta:** Uso de SQLite con modo WAL (Write-Ahead Logging) para una persistencia de datos rápida y segura.
 
 ## 🛠️ Arquitectura Técnica
 
 - **Lenguaje:** Go (Golang) con Workspace.
-- **Empaquetado:** `go:embed` para recursos estáticos autónomos.
-- **Transporte:** gRPC (Puerto 50051 TCP) con streams para difusión de preguntas.
-- **Descubrimiento:** mDNS / DNS-SD (Puerto 5353 UDP).
-- **Web UI:** HTML5/JavaScript (Vanilla) con WebSockets y CSS moderno.
-- **Seguridad:** Rate Limiting (50 msg/s por cliente) y validación HMAC-SHA256.
+- **Base de Datos:** SQLite con índices optimizados y carga paginada.
+- **Transporte:** gRPC (Puerto 50051 TCP) con streams para difusión.
+- **WebSockets:** Hub asíncrono con buffers por cliente (Admin Panel).
+- **Web UI:** HTML5/JavaScript (Vanilla) optimizado para bajo consumo de CPU/RAM.
+- **Reportes:** Motor de generación Excel integrado (`excelize`).
 
 ## 📋 Requisitos de Red (Servidor)
 

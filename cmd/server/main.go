@@ -41,7 +41,17 @@ func main() {
 	sessionToken = "sia-session-" + roomCode // Simplificado para red local
 	fmt.Printf("Iniciando Servidor de Sala [%s]...\n", roomCode)
 
-	manager := classroom.NewManager(roomCode)
+	// Inicializar Base de Datos
+	if err := os.MkdirAll("data", 0755); err != nil {
+		log.Fatalf("Error al crear directorio data: %v", err)
+	}
+	db, err := classroom.NewDBManager("data/sia.db")
+	if err != nil {
+		log.Fatalf("Error al inicializar DB: %v", err)
+	}
+	defer db.Close()
+
+	manager := classroom.NewManager(roomCode, db)
 	go manager.CleanupDisconnected()
 
 	hub := api.NewHub()
@@ -171,6 +181,67 @@ func main() {
 		id := r.URL.Path[len("/api/question/results/"):]
 		results := manager.GetResults(id)
 		json.NewEncoder(w).Encode(results)
+	})
+
+	adminMux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		history := manager.GetHistory()
+		json.NewEncoder(w).Encode(history)
+	})
+
+	adminMux.HandleFunc("/api/export/csv", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			http.Error(w, "ID de pregunta requerido", http.StatusBadRequest)
+			return
+		}
+
+		history := manager.GetHistory()
+		q, ok := history[id]
+		if !ok {
+			http.Error(w, "Pregunta no encontrada", http.StatusNotFound)
+			return
+		}
+
+		csvData, err := classroom.ExportQuestionToCSV(q)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=resultados_%s.csv", id))
+		w.Write(csvData)
+	})
+
+	adminMux.HandleFunc("/api/export/excel/session", func(w http.ResponseWriter, r *http.Request) {
+		if !isAuthenticated(r) {
+			http.Error(w, "No autorizado", http.StatusUnauthorized)
+			return
+		}
+
+		history := manager.GetHistory()
+		if len(history) == 0 {
+			http.Error(w, "No hay historial para exportar", http.StatusBadRequest)
+			return
+		}
+
+		excelData, err := classroom.ExportSessionToExcel(history)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		w.Header().Set("Content-Disposition", "attachment; filename=reporte_sesion_sia.xlsx")
+		w.Write(excelData)
 	})
 
 	adminMux.HandleFunc("/ws-admin", func(w http.ResponseWriter, r *http.Request) {

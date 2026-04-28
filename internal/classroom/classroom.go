@@ -22,15 +22,27 @@ type Manager struct {
 	ActiveQuestion  *models.ActiveQuestion
 	closedAt        time.Time // momento en que se cerró la pregunta activa
 	QuestionHistory map[string]*models.ActiveQuestion
+	db              *DBManager
 }
 
 // NewManager crea un nuevo gestor de sala.
-func NewManager(roomCode string) *Manager {
-	return &Manager{
+func NewManager(roomCode string, db *DBManager) *Manager {
+	m := &Manager{
 		RoomCode:        utils.NormalizeRoomCode(roomCode),
 		Students:        make(map[string]*models.Student),
 		QuestionHistory: make(map[string]*models.ActiveQuestion),
+		db:              db,
 	}
+
+	// Cargar solo las últimas 20 preguntas al inicio para ahorrar RAM
+	if db != nil {
+		if history, err := db.LoadHistoryPaged(m.RoomCode, 20, 0); err == nil {
+			m.QuestionHistory = history
+			fmt.Printf("Caché inicial cargada: %d preguntas recuperadas de la DB\n", len(history))
+		}
+	}
+
+	return m
 }
 
 // OpenQuestion registra una nueva pregunta activa. Retorna error si ya hay una abierta.
@@ -93,18 +105,21 @@ func (m *Manager) CloseQuestion(questionID string) (total int, correct string, c
 	}
 
 	m.QuestionHistory[questionID] = m.ActiveQuestion
+	// Si el historial crece mucho en RAM, podríamos podarlo aquí (opcional)
 
-	if len(m.QuestionHistory) > 50 {
-		// limpiar la entrada más antigua si fuera necesario
+	// Persistir en DB
+	if m.db != nil {
+		go func(q models.ActiveQuestion, code string) {
+			if err := m.db.SaveQuestion(&q, code); err != nil {
+				fmt.Printf("Error al persistir pregunta en DB: %v\n", err)
+			}
+		}(*m.ActiveQuestion, m.RoomCode)
 	}
 
 	return total, correct, counts, nil
 }
 
 // GetActiveQuestion retorna la pregunta activa actual.
-// Si la pregunta ya se cerró pero aún está dentro del TTL, la retorna igual
-// para que el cliente de polling pueda detectar el cierre y mostrar retroalimentación.
-// Pasado el TTL, retorna nil y limpia la referencia.
 func (m *Manager) GetActiveQuestion() *models.ActiveQuestion {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -113,35 +128,48 @@ func (m *Manager) GetActiveQuestion() *models.ActiveQuestion {
 		return nil
 	}
 
-	// Pregunta abierta → retornar normalmente
 	if m.ActiveQuestion.Open {
 		return m.ActiveQuestion
 	}
 
-	// Pregunta cerrada dentro del TTL → retornar para que el cliente detecte el cierre
 	if !m.closedAt.IsZero() && time.Since(m.closedAt) < closedQuestionTTL {
 		return m.ActiveQuestion
 	}
 
-	// TTL expirado → limpiar y retornar nil
 	m.ActiveQuestion = nil
 	m.closedAt = time.Time{}
 	return nil
 }
 
-// GetResults retorna todas las respuestas de una pregunta ya cerrada (del historial).
+// GetResults retorna todas las respuestas de una pregunta.
 func (m *Manager) GetResults(questionID string) []*models.Answer {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	q, ok := m.QuestionHistory[questionID]
 	if !ok && (m.ActiveQuestion == nil || m.ActiveQuestion.QuestionID != questionID) {
-		return nil
+		m.mu.RUnlock()
+		// Intentar cargar de DB si no está en caché
+		if m.db != nil {
+			h, _ := m.db.LoadHistoryPaged(m.RoomCode, 50, 0)
+			m.mu.Lock()
+			for k, v := range h {
+				m.QuestionHistory[k] = v
+			}
+			q, ok = m.QuestionHistory[questionID]
+			m.mu.Unlock()
+		}
+		if !ok {
+			return nil
+		}
+	} else {
+		m.mu.RUnlock()
 	}
-	if !ok {
+
+	if q == nil {
 		q = m.ActiveQuestion
 	}
 
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	results := make([]*models.Answer, 0, len(q.Answers))
 	for _, ans := range q.Answers {
 		results = append(results, ans)
@@ -240,4 +268,27 @@ func (m *Manager) GetStudentName(clientID string) string {
 		return s.StudentName
 	}
 	return "Desconocido"
+}
+
+// GetHistory retorna el historial (podría ser paginado en el futuro).
+func (m *Manager) GetHistory() map[string]*models.ActiveQuestion {
+	m.mu.RLock()
+	// Si tenemos DB y poco historial en RAM, refrescamos con las últimas 50
+	if m.db != nil && len(m.QuestionHistory) < 20 {
+		m.mu.RUnlock()
+		h, _ := m.db.LoadHistoryPaged(m.RoomCode, 50, 0)
+		m.mu.Lock()
+		for k, v := range h {
+			m.QuestionHistory[k] = v
+		}
+		m.mu.Unlock()
+		m.mu.RLock()
+	}
+	defer m.mu.RUnlock()
+	
+	copy := make(map[string]*models.ActiveQuestion)
+	for k, v := range m.QuestionHistory {
+		copy[k] = v
+	}
+	return copy
 }
