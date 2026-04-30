@@ -236,10 +236,11 @@
 
         /* === ACTIVE QUESTION OVERLAY === */
         #active-question-panel {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 500;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999;
             display: none; flex-direction: column; padding: 40px;
+            overflow-y: auto;
         }
-        .active-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+        .active-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; gap: 30px; }
         .q-info h2 { font-size: 2rem; max-width: 900px; color: var(--text); }
         .timer-box { position: relative; width: 100px; height: 100px; }
         .timer-svg { transform: rotate(-90deg); width: 100px; height: 100px; }
@@ -479,6 +480,11 @@
                 <div style="color: var(--blue); font-weight: 700; margin-bottom: 8px;">PREGUNTA ACTIVA</div>
                 <h2 id="display-q-text">Cargando pregunta...</h2>
             </div>
+            
+            <button class="btn-primary" id="btn-close-q" style="width:auto; margin-top:0; background:var(--red)" onclick="closeQuestion()">
+                ⏹ FINALIZAR PREGUNTA
+            </button>
+
             <div class="timer-box">
                 <svg class="timer-svg">
                     <circle></circle>
@@ -488,11 +494,14 @@
             </div>
         </div>
 
-        <div style="flex:1; display:grid; grid-template-columns: 1fr 1fr; gap:40px">
+        <div style="flex:1; display:grid; grid-template-columns: 1fr; gap:40px">
+            <!-- Gráfico deshabilitado temporalmente para diagnóstico -->
+            <!-- 
             <div class="chart-box">
                 <div class="chart-header"><h3>Resultados en Vivo</h3></div>
                 <canvas id="activeLiveChart"></canvas>
-            </div>
+            </div> 
+            -->
             <div class="card-table" style="overflow-y:auto">
                 <table id="live-answers-table">
                     <thead><tr><th>Estudiante</th><th>Respuesta</th><th>Hora</th></tr></thead>
@@ -509,9 +518,6 @@
                 </div>
                 <div id="progress-text" style="font-weight:700">0 / 0</div>
             </div>
-            <button class="btn-primary" id="btn-close-q" style="width:auto; margin-top:0; background:var(--red)" onclick="closeQuestion()">
-                ⏹ FINALIZAR PREGUNTA
-            </button>
         </div>
     </div>
 
@@ -519,6 +525,8 @@
         // === STATE ===
         let ws, roomCode = '', activeQuestion = null, timerInterval = null;
         let students = new Map();
+        let studentDomCache = new Map(); // Caché de nodos DOM por student_id
+        let connectedCount = 0; // Contador optimizado de estudiantes online
         let currentCorrectOpt = "";
         let liveChart;
         let answerCounts = { 'A': 0, 'B': 0, 'C': 0, 'D': 0 };
@@ -530,6 +538,9 @@
         // Optimization Flags
         let chartsUpdatePending = false;
         let statsUpdatePending = false;
+        let lastChartsUpdate = 0;
+        let lastStatsUpdate = 0;
+        const UPDATE_THROTTLE_MS = 500; // Máximo una actualización cada 500ms
 
         // === INIT ===
         document.addEventListener('DOMContentLoaded', () => {
@@ -539,6 +550,9 @@
         });
 
         function initCharts() {
+            const canvas = document.getElementById('activeLiveChart');
+            if (!canvas) return; // Salir si el canvas no existe (ej. deshabilitado para diagnóstico)
+
             const chartOptions = { 
                 responsive: true, 
                 maintainAspectRatio: false, 
@@ -546,7 +560,7 @@
                 plugins: { legend: { display: false } } 
             };
 
-            const ctx3 = document.getElementById('activeLiveChart').getContext('2d');
+            const ctx3 = canvas.getContext('2d');
             liveChart = new Chart(ctx3, {
                 type: 'bar',
                 data: {
@@ -558,24 +572,35 @@
         }
 
         function requestChartsUpdate() {
+            // Deshabilitado temporalmente para diagnóstico de rendimiento
+            return;
+            
             if (chartsUpdatePending || !activeQuestion) return;
+            
+            const now = Date.now();
+            if (now - lastChartsUpdate < UPDATE_THROTTLE_MS) return;
+
             chartsUpdatePending = true;
             requestAnimationFrame(() => {
                 const data = [answerCounts['A'], answerCounts['B'], answerCounts['C'], answerCounts['D']];
                 liveChart.data.datasets[0].data = data;
                 liveChart.update('none');
                 chartsUpdatePending = false;
+                lastChartsUpdate = Date.now();
             });
         }
 
         function requestStatsUpdate() {
             if (statsUpdatePending) return;
+
+            const now = Date.now();
+            if (now - lastStatsUpdate < UPDATE_THROTTLE_MS) return;
+
             statsUpdatePending = true;
             requestAnimationFrame(() => {
-                let online = 0;
-                students.forEach(s => { if(s.status === 'connected') online++; });
-                document.getElementById('stat-online').textContent = online;
+                document.getElementById('stat-online').textContent = connectedCount;
                 statsUpdatePending = false;
+                lastStatsUpdate = Date.now();
             });
         }
 
@@ -597,21 +622,25 @@
         }
 
         function handleWsMessage(data) {
-            if (data.type === 'init') {
-                roomCode = data.room;
-                document.getElementById('roomCodeDisplay').textContent = roomCode;
-                document.getElementById('student-table-body').innerHTML = ''; // Limpiar inicial
-                (data.students || []).forEach(s => upsertStudent(s));
-                checkActiveQuestion();
-            } else if (data.type === 'question_broadcast') {
-                showActivePanel(data.question);
-            } else if (data.type === 'new_answer') {
-                processAnswer(data);
-            } else if (data.type === 'question_closed') {
-                finishActiveQuestion(data);
-            } else if (data.client_id) {
-                upsertStudent(data);
-                if (data.event === 'security') handleSecurityEvent(data);
+            try {
+                if (data.type === 'init') {
+                    roomCode = data.room;
+                    document.getElementById('roomCodeDisplay').textContent = roomCode;
+                    document.getElementById('student-table-body').innerHTML = ''; // Limpiar inicial
+                    (data.students || []).forEach(s => upsertStudent(s));
+                    checkActiveQuestion();
+                } else if (data.type === 'question_broadcast') {
+                    showActivePanel(data.question);
+                } else if (data.type === 'new_answer') {
+                    processAnswer(data);
+                } else if (data.type === 'question_closed') {
+                    finishActiveQuestion(data);
+                } else if (data.client_id) {
+                    upsertStudent(data);
+                    if (data.event === 'security') handleSecurityEvent(data);
+                }
+            } catch (err) {
+                console.error("Error procesando mensaje WebSocket:", err, data);
             }
         }
 
@@ -629,47 +658,69 @@
 
         // === LOGICA ESTUDIANTES ===
         function upsertStudent(s) {
-            const existing = students.get(s.client_id) || {};
+            const existing = students.get(s.client_id);
             const updated = { ...existing, ...s };
             students.set(s.client_id, updated);
             
+            // Actualizar contador global si cambia el estado
+            if (!existing || existing.status !== updated.status) {
+                let online = 0;
+                students.forEach(st => { if(st.status === 'connected') online++; });
+                connectedCount = online;
+            }
+
             updateStudentRow(updated);
             requestStatsUpdate();
         }
 
         function updateStudentRow(s) {
-            const body = document.getElementById('student-table-body');
-            let tr = document.getElementById(`row-${s.client_id}`);
-            
-            if (!tr) {
-                tr = document.createElement('tr');
-                tr.id = `row-${s.client_id}`;
-                body.appendChild(tr);
-            }
-            
-            const initials = (s.student_name || '?').split(' ').map(n=>n[0]).join('').toUpperCase().substring(0,2);
-            const color = AVATAR_COLORS[Math.abs(s.client_id.charCodeAt(0)) % AVATAR_COLORS.length];
+            let cache = studentDomCache.get(s.client_id);
+            const lastSeenStr = s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : '---';
             const statusClass = s.status === 'connected' ? 'badge-online' : 'badge-offline';
-            const lastSeen = s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : '---';
 
-            // SVG de Ojo para evitar llamar a lucide.createIcons() costoso
-            const eyeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+            if (!cache) {
+                const body = document.getElementById('student-table-body');
+                const tr = document.createElement('tr');
+                tr.id = `row-${s.client_id}`;
+                
+                const initials = (s.student_name || '?').split(' ').map(n=>n[0]).join('').toUpperCase().substring(0,2);
+                const color = AVATAR_COLORS[Math.abs(s.client_id.charCodeAt(0)) % AVATAR_COLORS.length];
+                const eyeIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
-            tr.innerHTML = `
-                <td>
-                    <div style="display:flex; align-items:center; gap:12px">
-                        <div class="avatar" style="background:${color}">${initials}</div>
-                        <div>
-                            <div style="font-weight:600">${s.student_name}</div>
-                            <div style="font-size:0.75rem; color:var(--text-muted)">${s.client_id.substring(0,8)}</div>
+                tr.innerHTML = `
+                    <td>
+                        <div style="display:flex; align-items:center; gap:12px">
+                            <div class="avatar" style="background:${color}">${initials}</div>
+                            <div>
+                                <div style="font-weight:600">${s.student_name}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted)">${s.client_id.substring(0,8)}</div>
+                            </div>
                         </div>
-                    </div>
-                </td>
-                <td>${s.local_ip || '---'}</td>
-                <td>${lastSeen}</td>
-                <td><span class="badge ${statusClass}">${s.status}</span></td>
-                <td><button style="border:none; background:none; color:var(--blue); cursor:pointer">${eyeIcon}</button></td>
-            `;
+                    </td>
+                    <td class="ip-cell">${s.local_ip || '---'}</td>
+                    <td class="seen-cell">${lastSeenStr}</td>
+                    <td><span class="badge ${statusClass}">${s.status}</span></td>
+                    <td><button style="border:none; background:none; color:var(--blue); cursor:pointer">${eyeIcon}</button></td>
+                `;
+                
+                body.appendChild(tr);
+                
+                // Guardar referencias en caché
+                cache = {
+                    ip: tr.querySelector('.ip-cell'),
+                    seen: tr.querySelector('.seen-cell'),
+                    badge: tr.querySelector('.badge')
+                };
+                studentDomCache.set(s.client_id, cache);
+            } else {
+                // Actualización quirúrgica rápida
+                if (cache.ip.textContent !== (s.local_ip || '---')) cache.ip.textContent = s.local_ip || '---';
+                if (cache.seen.textContent !== lastSeenStr) cache.seen.textContent = lastSeenStr;
+                if (cache.badge.textContent !== s.status) {
+                    cache.badge.textContent = s.status;
+                    cache.badge.className = `badge ${statusClass}`;
+                }
+            }
         }
 
         function handleSecurityEvent(d) {
@@ -830,8 +881,17 @@
         function processAnswer(d) {
             const ans = d.answer || d.Answer;
             const table = document.getElementById('live-answers-table').querySelector('tbody');
+            
+            // Creación manual de fila más rápida que innerHTML
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${d.student_name}</td><td><strong>${ans}</strong></td><td>${new Date().toLocaleTimeString()}</td>`;
+            const tdName = document.createElement('td');
+            tdName.textContent = d.student_name;
+            const tdAns = document.createElement('td');
+            tdAns.innerHTML = `<strong>${ans}</strong>`;
+            const tdTime = document.createElement('td');
+            tdTime.textContent = new Date().toLocaleTimeString();
+            tr.appendChild(tdName); tr.appendChild(tdAns); tr.appendChild(tdTime);
+
             table.prepend(tr);
             if (table.children.length > 30) table.lastElementChild.remove();
 
@@ -841,10 +901,11 @@
                 answerCounts[ans] = (answerCounts[ans] || 0) + 1;
             }
 
-            const total = Object.values(answerCounts).reduce((a,b)=>a+b, 0);
+            // O(1) para el total de respuestas sumando solo las opciones posibles
+            const total = (answerCounts['A'] || 0) + (answerCounts['B'] || 0) + (answerCounts['C'] || 0) + (answerCounts['D'] || 0) + (answerCounts['TEXT'] || 0);
             document.getElementById('stat-responses').textContent = total;
             
-            const totalStudents = Array.from(students.values()).filter(s => s.status === 'connected').length || 1;
+            const totalStudents = connectedCount || 1;
             const pct = Math.round((total / totalStudents) * 100);
             document.getElementById('progress-fill').style.width = pct + '%';
             document.getElementById('progress-text').textContent = `${total} / ${totalStudents}`;
@@ -855,18 +916,15 @@
         function finishActiveQuestion(data) {
             clearTimer();
             
-            if (data.counts && activeQuestion && activeQuestion.correct_option) {
-                const correct = data.counts[activeQuestion.correct_option] || 0;
-                const total = data.total_answers || 0;
-                accuracyChart.data.datasets[0].data = [correct, total - correct];
-                accuracyChart.update();
-            }
-
             // Cambiar el botón para permitir cierre manual
             const btn = document.getElementById('btn-close-q');
-            btn.textContent = "VOLVER AL DASHBOARD";
-            btn.style.background = "var(--blue)";
-            activeQuestion.is_finished_ui = true;
+            if (btn) {
+                btn.textContent = "VOLVER AL DASHBOARD";
+                btn.style.background = "var(--blue)";
+            }
+            if (activeQuestion) {
+                activeQuestion.is_finished_ui = true;
+            }
         }
 
         async function closeQuestion() {

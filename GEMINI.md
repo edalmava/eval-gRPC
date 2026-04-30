@@ -57,14 +57,22 @@ Toda acción crítica (unirse, responder, lanzar pregunta) requiere una firma HM
 - **Respuesta:** `HMAC(QuestionID + ClientID + Answer, RoomCode)`
 - **Pregunta:** `HMAC(QuestionID + RoomCode, RoomCode)`
 
-### Gestión de Estado
+### Gestión de Estado y Persistencia
 - El `Manager` en `internal/classroom` es el único responsable de la consistencia de la sala. Utiliza `sync.RWMutex` para concurrencia segura.
-- Los estudiantes tienen un **periodo de gracia de 2 minutos** para reconectarse antes de ser eliminados de la lista activa.
+- **Persistencia:** SQLite con `journal_mode=WAL` y `busy_timeout=5000`. Se utiliza `SetMaxOpenConns(1)` para evitar errores de "database is locked" durante escrituras concurrentes.
+- **Historial:** Carga paginada de 50 elementos para optimizar el consumo de memoria en sesiones largas.
+- **Reconexión:** Los estudiantes tienen un **periodo de gracia de 2 minutos** para reconectarse antes de ser eliminados de la lista activa.
+
+### Panel Administrativo (WebSockets)
+- El panel se sirve en el puerto `8090`.
+- Utiliza un **Hub de WebSockets** asíncrono con un buffer de 256 mensajes por cliente.
+- Implementa desconexión automática para clientes lentos que saturen su buffer.
 
 ---
 
 ## 🛠️ Roadmap / Pendientes (TODO)
-- [ ] Implementar persistencia opcional (JSON o SQLite) para resultados históricos.
+- [x] Implementar persistencia opcional (SQLite) para resultados históricos con modo WAL.
+- [x] Implementar exportación de resultados a CSV y Excel (librería excelize).
+- [x] Mejorar el dashboard administrativo con gráficos (Chart.js) y monitoreo de seguridad.
 - [ ] Agregar soporte para imágenes o fórmulas en las preguntas.
-- [ ] Mejorar el dashboard administrativo con gráficos (Chart.js).
-- [ ] Implementar exportación de resultados a CSV/Excel.
+- [ ] Implementar un modo de "Examen" con múltiples preguntas secuenciales.
